@@ -82,7 +82,6 @@ jobs:
           haxelib install flixel
           haxelib install flixel-addons
           haxelib install flixel-ui
-          haxelib install hscript-improved
           haxelib install scriptless-polymod
           haxelib install flxanimate
           haxelib install hxdiscord_rpc
@@ -93,6 +92,7 @@ jobs:
 
       - name: Install Git dependencies
         run: |
+          haxelib git hscript-improved https://github.com/CodenameCrew/hscript-improved.git
           haxelib git linc_luajit https://github.com/nebulazorua/linc_luajit.git
           haxelib git fnf-modcharting-tools https://github.com/TheZoroForce240/FNF-Modcharting-Tools.git
 
