@@ -43,8 +43,6 @@ jobs:
           echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
 
-          echo "Android SDK: $ANDROID_SDK_ROOT"
-
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
@@ -77,17 +75,26 @@ jobs:
         run: |
           haxelib setup ~/haxelib
 
-      - name: Install Haxelib dependencies
+      - name: Install main Haxelib dependencies
         run: |
           haxelib install lime
           haxelib install openfl
           haxelib install flixel
           haxelib install flixel-addons
           haxelib install flixel-ui
-          haxelib install hscript
-          haxelib install polymod
-          haxelib install flixelTextureAtlas
-          haxelib install hxCodec
+          haxelib install hscript-improved
+          haxelib install scriptless-polymod
+          haxelib install flxanimate
+          haxelib install hxdiscord_rpc
+          haxelib install hxvlc
+          haxelib install hxNoise
+          haxelib install funkin.vis
+          haxelib install grig.audio
+
+      - name: Install Git dependencies
+        run: |
+          haxelib git linc_luajit https://github.com/nebulazorua/linc_luajit.git
+          haxelib git fnf-modcharting-tools https://github.com/TheZoroForce240/FNF-Modcharting-Tools.git
 
       - name: Setup Lime
         run: |
@@ -108,14 +115,14 @@ jobs:
           echo "===== HAXE ====="
           haxe --version
 
+          echo "===== HAXELIB ====="
+          haxelib list
+
           echo "===== LIME ====="
           haxelib run lime version
 
-          echo "===== SDKMANAGER ====="
+          echo "===== ANDROID ====="
           sdkmanager --version
-
-          echo "===== ANDROID SDK ====="
-          echo "$ANDROID_SDK_ROOT"
 
           echo "===== PROJECT ====="
           test -f Project.xml
