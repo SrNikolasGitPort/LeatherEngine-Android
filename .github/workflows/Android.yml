@@ -20,9 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --------------------------------------------------
-      # JAVA
-      # --------------------------------------------------
+      # ==============================
+      # JAVA 17
+      # ==============================
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -40,9 +40,9 @@ jobs:
 
           java -version
 
-      # --------------------------------------------------
+      # ==============================
       # HAXE
-      # --------------------------------------------------
+      # ==============================
 
       - name: Setup Haxe
         uses: krdlab/setup-haxe@v1
@@ -54,9 +54,9 @@ jobs:
           haxe --version
           haxelib version
 
-      # --------------------------------------------------
+      # ==============================
       # ANDROID SDK
-      # --------------------------------------------------
+      # ==============================
 
       - name: Configure Android SDK
         run: |
@@ -93,17 +93,17 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
 
-      # --------------------------------------------------
+      # ==============================
       # HAXELIB
-      # --------------------------------------------------
+      # ==============================
 
       - name: Setup Haxelib
         run: |
           haxelib setup ~/haxelib
 
-      # --------------------------------------------------
-      # CORE LIBRARIES
-      # --------------------------------------------------
+      # ==============================
+      # CORE DEPENDENCIES
+      # ==============================
 
       - name: Install Core Haxelibs
         run: |
@@ -114,50 +114,73 @@ jobs:
           haxelib install flixel-ui
           haxelib install flxanimate
           haxelib install hxvlc
-          haxelib install hxNoise
           haxelib install grig.audio
 
-      # --------------------------------------------------
-      # GIT LIBRARIES
-      # --------------------------------------------------
+      # ==============================
+      # HXSCRIPT
+      # ==============================
 
-      - name: Install Git Libraries
+      - name: Install HScript Improved
         run: |
           haxelib git hscript-improved https://github.com/FNF-CNE-Devs/hscript-improved.git
+
+      # ==============================
+      # FUNKIN VIS
+      # ==============================
+
+      - name: Install funkin.vis
+        run: |
           haxelib git funkin.vis https://github.com/FunkinCrew/funkVis.git
 
-          haxelib git linc_luajit https://github.com/superpowers04/linc_luajit.git
+      # ==============================
+      # HXNOISE
+      # ==============================
 
+      - name: Install hxNoise
+        run: |
+          git clone --depth 1 https://github.com/whuop/hxNoise.git /tmp/hxNoise
+          haxelib dev hxnoise /tmp/hxNoise
+
+      # ==============================
+      # LUAJIT
+      # ==============================
+
+      - name: Install LuaJIT
+        run: |
+          haxelib git linc_luajit https://github.com/nebulazorua/linc_luajit.git
+
+      # ==============================
+      # MODCHARTING TOOLS
+      # ==============================
+
+      - name: Install Modcharting Tools
+        run: |
           haxelib git fnf-modcharting-tools https://github.com/TheZoroForce240/FNF-Modcharting-Tools.git
 
-      # --------------------------------------------------
-      # OPTIONAL / ANDROID-INCOMPATIBLE FEATURES
-      # --------------------------------------------------
+      # ==============================
+      # PREPARE ANDROID PROJECT
+      # ==============================
 
-      - name: Prepare Project for Android
+      - name: Prepare Android Project
         run: |
-          cp Project.xml Project.android.xml
+          cp Project.xml Project.android.backup.xml
 
-          python3 - <<'PY'
+          python3 <<'PY'
           from pathlib import Path
 
           p = Path("Project.xml")
           text = p.read_text()
 
-          # Disable desktop-oriented features for Android.
+          # Disable desktop-only Discord support.
           text = text.replace(
               '<define name="DISCORD_ALLOWED" />',
-              '<!-- <define name="DISCORD_ALLOWED" /> -->'
+              '<define name="DISCORD_ALLOWED" if="desktop" />'
           )
 
+          # Lua is desktop-only in the original Leather project.
           text = text.replace(
               '<define name="LUA_ALLOWED" />',
-              '<!-- <define name="LUA_ALLOWED" /> -->'
-          )
-
-          text = text.replace(
-              '<haxelib name="hxdiscord_rpc" if="DISCORD_ALLOWED" />',
-              '<haxelib name="hxdiscord_rpc" if="DISCORD_ALLOWED" />'
+              '<define name="LUA_ALLOWED" if="desktop" />'
           )
 
           p.write_text(text)
@@ -168,110 +191,111 @@ jobs:
           grep -n "DISCORD_ALLOWED" Project.xml || true
           grep -n "LUA_ALLOWED" Project.xml || true
 
-      # --------------------------------------------------
-      # CHECK SCRIPTLESS POLYMOD
-      # --------------------------------------------------
+      # ==============================
+      # SCRIPTLESS POLYMOD CHECK
+      # ==============================
 
       - name: Check Scriptless Polymod
         run: |
           echo "Checking scriptless-polymod..."
 
           if haxelib list | grep -qi "scriptless-polymod"; then
-            echo "scriptless-polymod already installed."
+            echo "scriptless-polymod is installed."
           elif find . -type d -iname "*scriptless*polymod*" | grep -q .; then
-            echo "Local scriptless-polymod found."
+            echo "Local scriptless-polymod detected."
           else
-            echo "WARNING: scriptless-polymod was not found."
-            echo "The build may require the original dependency source."
+            echo "scriptless-polymod is not installed."
+            echo "Continuing so the exact Project.xml/build error can identify whether it is required."
           fi
 
-      # --------------------------------------------------
+      # ==============================
       # LIME
-      # --------------------------------------------------
+      # ==============================
 
       - name: Setup Lime
         run: |
           haxelib run lime setup
           haxelib run lime setup flixel
 
-      - name: Configure Lime Android
+      - name: Configure Lime
         run: |
           haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
           haxelib run lime config ANDROID_NDK "$ANDROID_NDK_ROOT"
           haxelib run lime config JAVA_HOME "$JAVA_HOME_17_X64"
 
-      # --------------------------------------------------
-      # VERIFY ENVIRONMENT
-      # --------------------------------------------------
+      # ==============================
+      # ENVIRONMENT CHECK
+      # ==============================
 
       - name: Verify Environment
         run: |
-          echo "================================"
+          echo "=============================="
           echo "JAVA"
-          echo "================================"
+          echo "=============================="
           java -version
 
-          echo "================================"
+          echo "=============================="
           echo "HAXE"
-          echo "================================"
+          echo "=============================="
           haxe --version
 
-          echo "================================"
+          echo "=============================="
           echo "HAXELIBS"
-          echo "================================"
+          echo "=============================="
           haxelib list
 
-          echo "================================"
+          echo "=============================="
           echo "LIME"
-          echo "================================"
+          echo "=============================="
           haxelib run lime version
 
-          echo "================================"
+          echo "=============================="
           echo "ANDROID"
-          echo "================================"
+          echo "=============================="
           sdkmanager --version
 
-          echo "================================"
+          echo "=============================="
           echo "NDK"
-          echo "================================"
-          ls -la "$ANDROID_NDK_ROOT"
+          echo "=============================="
+          test -d "$ANDROID_NDK_ROOT"
+          echo "$ANDROID_NDK_ROOT"
 
-          echo "================================"
+          echo "=============================="
           echo "PROJECT"
-          echo "================================"
+          echo "=============================="
           test -f Project.xml
+          echo "Project.xml found."
 
-          echo "Project.xml OK."
-
-      # --------------------------------------------------
-      # BUILD
-      # --------------------------------------------------
+      # ==============================
+      # BUILD APK
+      # ==============================
 
       - name: Build Android APK
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
-          echo "Starting Leather Engine Android build..."
+          echo "================================"
+          echo "BUILDING LEATHER ENGINE ANDROID"
+          echo "================================"
 
           haxelib run lime build android -release
 
-      # --------------------------------------------------
+      # ==============================
       # FIND APK
-      # --------------------------------------------------
+      # ==============================
 
       - name: Find APK
         run: |
           echo "Searching for APK..."
 
-          find . \
-            -type f \
+          find . -type f \
             \( -name "*.apk" -o -name "*.aab" \) \
             -print
 
-      # --------------------------------------------------
+      # ==============================
       # UPLOAD APK
-      # --------------------------------------------------
+      # ==============================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
