@@ -25,44 +25,43 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Force Java 17
-        shell: bash
+      - name: Configure Java
         run: |
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-
-          echo "JAVA_HOME=$JAVA_HOME"
-          java -version
 
       - name: Setup Haxe
         uses: krdlab/setup-haxe@v1
         with:
           haxe-version: "4.2.5"
 
-      - name: Setup Android SDK
-        shell: bash
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
+      - name: Configure Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+
+          echo "Android SDK: $ANDROID_SDK_ROOT"
+
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+
+          java -version
+          sdkmanager --version
+
+      - name: Accept Android licenses
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
+          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
-          echo "Using Java:"
-          java -version
-
-          echo "Android SDK:"
-          echo "$ANDROID_SDK_ROOT"
-
-          yes | sdkmanager --licenses || true
+          yes | sdkmanager --licenses > /dev/null || true
 
       - name: Install Android SDK packages
-        shell: bash
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
+          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-31"
@@ -70,22 +69,15 @@ jobs:
           sdkmanager "ndk;21.4.7075529"
 
       - name: Configure Android environment
-        shell: bash
         run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
 
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT"
-          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529"
-
       - name: Setup Haxelib
-        shell: bash
         run: |
           haxelib setup ~/haxelib
 
       - name: Install Haxelib dependencies
-        shell: bash
         run: |
           haxelib install lime
           haxelib install openfl
@@ -98,20 +90,17 @@ jobs:
           haxelib install hxCodec
 
       - name: Setup Lime
-        shell: bash
         run: |
           haxelib run lime setup
           haxelib run lime setup flixel
 
       - name: Configure Lime
-        shell: bash
         run: |
           haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
           haxelib run lime config ANDROID_NDK "$ANDROID_NDK_ROOT"
           haxelib run lime config JAVA_HOME "$JAVA_HOME_17_X64"
 
       - name: Check Environment
-        shell: bash
         run: |
           echo "===== JAVA ====="
           java -version
@@ -122,23 +111,24 @@ jobs:
           echo "===== LIME ====="
           haxelib run lime version
 
-          echo "===== ANDROID ====="
+          echo "===== SDKMANAGER ====="
           sdkmanager --version
+
+          echo "===== ANDROID SDK ====="
+          echo "$ANDROID_SDK_ROOT"
 
           echo "===== PROJECT ====="
           test -f Project.xml
           echo "Project.xml found."
 
       - name: Build Android APK
-        shell: bash
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
+          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
           haxelib run lime build android -release
 
       - name: Find APK
-        shell: bash
         run: |
           echo "Searching for APK..."
           find . -type f -name "*.apk" -print
