@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: "17"
 
       - name: Setup Haxe
         uses: krdlab/setup-haxe@v1
@@ -46,9 +46,12 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> $GITHUB_ENV
 
-      - name: Install Haxelib dependencies
+      - name: Setup Haxelib
         run: |
           haxelib setup ~/haxelib
+
+      - name: Install Haxelib dependencies
+        run: |
           haxelib install lime
           haxelib install openfl
           haxelib install flixel
@@ -64,11 +67,11 @@ jobs:
           haxelib run lime setup
           haxelib run lime setup flixel
 
-      - name: Setup Android
+      - name: Configure Lime Android
         run: |
           haxelib run lime config ANDROID_SDK $ANDROID_SDK_ROOT
           haxelib run lime config ANDROID_NDK $ANDROID_NDK_ROOT
-          haxelib run lime config JAVA_HOME $JAVA_HOME_11_X64
+          haxelib run lime config JAVA_HOME $JAVA_HOME_17_X64
 
       - name: Build Android APK
         run: |
@@ -76,12 +79,14 @@ jobs:
 
       - name: Find APK
         run: |
-          find export -type f -name "*.apk" -print
+          echo "Searching for APK..."
+          find . -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LeatherEngine-Android
           path: |
+            export/**/*.apk
             export/**/*.apk
           if-no-files-found: error
