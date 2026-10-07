@@ -88,6 +88,10 @@ jobs:
           sdkmanager "build-tools;31.0.0"
           sdkmanager "ndk;21.4.7075529"
 
+      # ==============================
+      # ANDROID NDK
+      # ==============================
+
       - name: Configure Android NDK
         run: |
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
@@ -102,7 +106,7 @@ jobs:
           haxelib setup ~/haxelib
 
       # ==============================
-      # CORE DEPENDENCIES
+      # CORE HAXELIBS
       # ==============================
 
       - name: Install Core Haxelibs
@@ -117,7 +121,7 @@ jobs:
           haxelib install grig.audio
 
       # ==============================
-      # HXSCRIPT
+      # HScript Improved
       # ==============================
 
       - name: Install HScript Improved
@@ -125,7 +129,7 @@ jobs:
           haxelib git hscript-improved https://github.com/FNF-CNE-Devs/hscript-improved.git
 
       # ==============================
-      # FUNKIN VIS
+      # Funkin.vis
       # ==============================
 
       - name: Install funkin.vis
@@ -133,7 +137,7 @@ jobs:
           haxelib git funkin.vis https://github.com/FunkinCrew/funkVis.git
 
       # ==============================
-      # HXNOISE
+      # hxNoise
       # ==============================
 
       - name: Install hxNoise
@@ -142,7 +146,7 @@ jobs:
           haxelib dev hxnoise /tmp/hxNoise
 
       # ==============================
-      # LUAJIT
+      # LuaJIT
       # ==============================
 
       - name: Install LuaJIT
@@ -171,13 +175,11 @@ jobs:
           p = Path("Project.xml")
           text = p.read_text()
 
-          # Disable desktop-only Discord support.
           text = text.replace(
               '<define name="DISCORD_ALLOWED" />',
               '<define name="DISCORD_ALLOWED" if="desktop" />'
           )
 
-          # Lua is desktop-only in the original Leather project.
           text = text.replace(
               '<define name="LUA_ALLOWED" />',
               '<define name="LUA_ALLOWED" if="desktop" />'
@@ -188,11 +190,14 @@ jobs:
 
           echo "Android Project.xml prepared."
 
+          echo "Discord:"
           grep -n "DISCORD_ALLOWED" Project.xml || true
+
+          echo "Lua:"
           grep -n "LUA_ALLOWED" Project.xml || true
 
       # ==============================
-      # SCRIPTLESS POLYMOD CHECK
+      # CHECK MODDING DEPENDENCY
       # ==============================
 
       - name: Check Scriptless Polymod
@@ -201,21 +206,27 @@ jobs:
 
           if haxelib list | grep -qi "scriptless-polymod"; then
             echo "scriptless-polymod is installed."
+
           elif find . -type d -iname "*scriptless*polymod*" | grep -q .; then
             echo "Local scriptless-polymod detected."
+
           else
             echo "scriptless-polymod is not installed."
-            echo "Continuing so the exact Project.xml/build error can identify whether it is required."
+            echo "Continuing to allow the Project.xml/build stage to identify whether it is required."
           fi
 
       # ==============================
-      # LIME
+      # LIME SETUP
       # ==============================
 
       - name: Setup Lime
         run: |
           haxelib run lime setup
           haxelib run lime setup flixel
+
+      # ==============================
+      # LIME ANDROID CONFIG
+      # ==============================
 
       - name: Configure Lime
         run: |
@@ -224,7 +235,7 @@ jobs:
           haxelib run lime config JAVA_HOME "$JAVA_HOME_17_X64"
 
       # ==============================
-      # ENVIRONMENT CHECK
+      # VERIFY ENVIRONMENT
       # ==============================
 
       - name: Verify Environment
@@ -232,39 +243,50 @@ jobs:
           echo "=============================="
           echo "JAVA"
           echo "=============================="
+
           java -version
 
           echo "=============================="
           echo "HAXE"
           echo "=============================="
+
           haxe --version
 
           echo "=============================="
           echo "HAXELIBS"
           echo "=============================="
+
           haxelib list
 
           echo "=============================="
           echo "LIME"
           echo "=============================="
-          haxelib run lime version
+
+          haxelib list | grep -E "^lime:"
 
           echo "=============================="
-          echo "ANDROID"
+          echo "ANDROID SDK"
           echo "=============================="
+
           sdkmanager --version
 
           echo "=============================="
-          echo "NDK"
+          echo "ANDROID NDK"
           echo "=============================="
+
           test -d "$ANDROID_NDK_ROOT"
           echo "$ANDROID_NDK_ROOT"
 
           echo "=============================="
           echo "PROJECT"
           echo "=============================="
+
           test -f Project.xml
           echo "Project.xml found."
+
+          echo "=============================="
+          echo "ENVIRONMENT OK"
+          echo "=============================="
 
       # ==============================
       # BUILD APK
@@ -275,10 +297,6 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_17_X64"
           export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
-          echo "================================"
-          echo "BUILDING LEATHER ENGINE ANDROID"
-          echo "================================"
-
           haxelib run lime build android -release
 
       # ==============================
@@ -287,11 +305,12 @@ jobs:
 
       - name: Find APK
         run: |
-          echo "Searching for APK..."
+          echo "Searching for APK/AAB..."
 
-          find . -type f \
-            \( -name "*.apk" -o -name "*.aab" \) \
-            -print
+          find . -type f \( \
+            -name "*.apk" \
+            -o -name "*.aab" \
+          \) -print
 
       # ==============================
       # UPLOAD APK
