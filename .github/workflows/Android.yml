@@ -1,4 +1,4 @@
-name: Leather Engine Android
+name: Build Leather Engine Android
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
           java -version
 
       # ========================================
-      # HAXE
+      # HAXE 4.2.5
       # ========================================
 
       - name: Setup Haxe
@@ -166,7 +166,7 @@ jobs:
           haxelib git fnf-modcharting-tools https://github.com/TheZoroForce240/FNF-Modcharting-Tools.git
 
       # ========================================
-      # PREPARE PROJECT FOR ANDROID
+      # PREPARE ANDROID PROJECT
       # ========================================
 
       - name: Prepare Android Project
@@ -179,31 +179,40 @@ jobs:
           p = Path("Project.xml")
           text = p.read_text()
 
-          # ======================================
-          # DISCORD SOMENTE NO DESKTOP
-          # ======================================
+          # ----------------------------------------
+          # DISCORD DESKTOP ONLY
+          # ----------------------------------------
 
           text = text.replace(
               '<define name="DISCORD_ALLOWED" />',
               '<define name="DISCORD_ALLOWED" if="desktop" />'
           )
 
-          # ======================================
-          # LUA SOMENTE NO DESKTOP
-          # ======================================
+          # ----------------------------------------
+          # LUA DESKTOP ONLY
+          # ----------------------------------------
 
           text = text.replace(
               '<define name="LUA_ALLOWED" />',
               '<define name="LUA_ALLOWED" if="desktop" />'
           )
 
-          # ======================================
-          # MODDING SOMENTE NO DESKTOP
-          # ======================================
+          # ----------------------------------------
+          # MODDING DESKTOP ONLY
+          # ----------------------------------------
 
           text = text.replace(
               '<define name="MODDING_ALLOWED" />',
               '<define name="MODDING_ALLOWED" if="desktop" />'
+          )
+
+          # ----------------------------------------
+          # REMOVE SCRIPTLESS POLYMOD
+          # ----------------------------------------
+
+          text = text.replace(
+              '<haxelib name="scriptless-polymod" if="MODDING_ALLOWED" />',
+              ''
           )
 
           p.write_text(text)
@@ -213,29 +222,38 @@ jobs:
           echo "ANDROID PROJECT PREPARED"
           echo "========================================"
 
-          echo "DISCORD:"
-          grep -n "DISCORD_ALLOWED" Project.xml || true
-
-          echo "LUA:"
-          grep -n "LUA_ALLOWED" Project.xml || true
-
-          echo "MODDING:"
+          echo "Checking MODDING_ALLOWED:"
           grep -n "MODDING_ALLOWED" Project.xml || true
 
-      # ========================================
-      # CHECK SCRIPTLESS POLYMOD
-      # ========================================
-
-      - name: Check Scriptless Polymod
-        run: |
-          echo "Checking scriptless-polymod..."
-
-          if haxelib list | grep -qi "scriptless-polymod"; then
-            echo "scriptless-polymod is installed."
-
+          echo "Checking scriptless-polymod:"
+          if grep -q "scriptless-polymod" Project.xml; then
+            echo "ERROR: scriptless-polymod still exists!"
+            exit 1
           else
-            echo "scriptless-polymod is not installed."
-            echo "Android build will use MODDING_ALLOWED disabled."
+            echo "OK: scriptless-polymod removed."
+          fi
+
+          echo "Checking Discord:"
+          grep -n "DISCORD_ALLOWED" Project.xml || true
+
+          echo "Checking Lua:"
+          grep -n "LUA_ALLOWED" Project.xml || true
+
+      # ========================================
+      # CHECK POLYMOD
+      # ========================================
+
+      - name: Check Android Modding Configuration
+        run: |
+          echo "Android modding configuration:"
+          grep -n "MODDING_ALLOWED" Project.xml || true
+
+          echo ""
+          echo "Searching for scriptless-polymod:"
+          if grep -R "scriptless-polymod" Project.xml source 2>/dev/null; then
+            echo "WARNING: source still references scriptless-polymod."
+          else
+            echo "No scriptless-polymod reference found in Project.xml/source."
           fi
 
       # ========================================
@@ -308,19 +326,22 @@ jobs:
           echo "Project.xml found."
 
           echo "========================================"
-          echo "ANDROID CONFIGURATION"
+          echo "SCRIPTLESS POLYMOD"
           echo "========================================"
 
-          grep -n "MODDING_ALLOWED" Project.xml || true
-          grep -n "LUA_ALLOWED" Project.xml || true
-          grep -n "DISCORD_ALLOWED" Project.xml || true
+          if grep -q "scriptless-polymod" Project.xml; then
+            echo "ERROR: scriptless-polymod is still present."
+            exit 1
+          else
+            echo "OK: scriptless-polymod is disabled for Android."
+          fi
 
           echo "========================================"
           echo "ENVIRONMENT OK"
           echo "========================================"
 
       # ========================================
-      # BUILD ANDROID APK
+      # BUILD APK
       # ========================================
 
       - name: Build Android APK
