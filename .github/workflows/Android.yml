@@ -45,7 +45,7 @@ jobs:
           java -version
 
       # ========================================
-      # HAXE 4.2.5
+      # HAXE
       # ========================================
 
       - name: Setup Haxe
@@ -166,95 +166,132 @@ jobs:
           haxelib git fnf-modcharting-tools https://github.com/TheZoroForce240/FNF-Modcharting-Tools.git
 
       # ========================================
-      # PREPARE ANDROID PROJECT
+      # PREPARE PROJECT FOR ANDROID
       # ========================================
 
       - name: Prepare Android Project
         run: |
-          cp Project.xml Project.android.backup.xml
-
           python3 <<'PY'
           from pathlib import Path
+          import re
 
-          p = Path("Project.xml")
-          text = p.read_text()
+          project = Path("Project.xml")
+
+          text = project.read_text()
 
           # ----------------------------------------
           # DISCORD DESKTOP ONLY
           # ----------------------------------------
 
-          text = text.replace(
-              '<define name="DISCORD_ALLOWED" />',
-              '<define name="DISCORD_ALLOWED" if="desktop" />'
+          text = re.sub(
+              r'<define\s+name=["\']DISCORD_ALLOWED["\'][^>]*/>',
+              '<define name="DISCORD_ALLOWED" if="desktop" />',
+              text
           )
 
           # ----------------------------------------
           # LUA DESKTOP ONLY
           # ----------------------------------------
 
-          text = text.replace(
-              '<define name="LUA_ALLOWED" />',
-              '<define name="LUA_ALLOWED" if="desktop" />'
+          text = re.sub(
+              r'<define\s+name=["\']LUA_ALLOWED["\'][^>]*/>',
+              '<define name="LUA_ALLOWED" if="desktop" />',
+              text
           )
 
           # ----------------------------------------
           # MODDING DESKTOP ONLY
           # ----------------------------------------
 
-          text = text.replace(
-              '<define name="MODDING_ALLOWED" />',
-              '<define name="MODDING_ALLOWED" if="desktop" />'
+          text = re.sub(
+              r'<define\s+name=["\']MODDING_ALLOWED["\'][^>]*/>',
+              '<define name="MODDING_ALLOWED" if="desktop" />',
+              text
           )
 
           # ----------------------------------------
-          # REMOVE SCRIPTLESS POLYMOD
+          # REMOVE EVERY SCRIPTLESS-POLYMOD XML LINE
           # ----------------------------------------
 
-          text = text.replace(
-              '<haxelib name="scriptless-polymod" if="MODDING_ALLOWED" />',
-              ''
-          )
+          lines = text.splitlines()
 
-          p.write_text(text)
+          lines = [
+              line
+              for line in lines
+              if "scriptless-polymod" not in line.lower()
+          ]
+
+          project.write_text("\n".join(lines) + "\n")
           PY
 
           echo "========================================"
           echo "ANDROID PROJECT PREPARED"
           echo "========================================"
 
-          echo "Checking MODDING_ALLOWED:"
-          grep -n "MODDING_ALLOWED" Project.xml || true
-
-          echo "Checking scriptless-polymod:"
-          if grep -q "scriptless-polymod" Project.xml; then
-            echo "ERROR: scriptless-polymod still exists!"
-            exit 1
-          else
-            echo "OK: scriptless-polymod removed."
-          fi
-
-          echo "Checking Discord:"
-          grep -n "DISCORD_ALLOWED" Project.xml || true
-
-          echo "Checking Lua:"
-          grep -n "LUA_ALLOWED" Project.xml || true
-
-      # ========================================
-      # CHECK POLYMOD
-      # ========================================
-
-      - name: Check Android Modding Configuration
-        run: |
-          echo "Android modding configuration:"
+          echo ""
+          echo "MODDING:"
           grep -n "MODDING_ALLOWED" Project.xml || true
 
           echo ""
-          echo "Searching for scriptless-polymod:"
-          if grep -R "scriptless-polymod" Project.xml source 2>/dev/null; then
-            echo "WARNING: source still references scriptless-polymod."
+          echo "SCRIPTLESS POLYMOD:"
+          if grep -in "scriptless-polymod" Project.xml; then
+            echo "ERROR: scriptless-polymod STILL EXISTS"
+            exit 1
           else
-            echo "No scriptless-polymod reference found in Project.xml/source."
+            echo "OK: scriptless-polymod completely removed"
           fi
+
+          echo ""
+          echo "DISCORD:"
+          grep -n "DISCORD_ALLOWED" Project.xml || true
+
+          echo ""
+          echo "LUA:"
+          grep -n "LUA_ALLOWED" Project.xml || true
+
+      # ========================================
+      # VERIFY NO BACKUP PROJECT EXISTS
+      # ========================================
+
+      - name: Verify Project Files
+        run: |
+          echo "Project files found:"
+          find . -maxdepth 2 -name "Project*.xml" -print
+
+          echo ""
+          echo "Searching entire repository for scriptless-polymod:"
+
+          if grep -Rni \
+            --exclude-dir=.git \
+            --exclude-dir=.haxelib \
+            "scriptless-polymod" .; then
+
+            echo ""
+            echo "ERROR: scriptless-polymod still exists somewhere in the project."
+            exit 1
+
+          else
+            echo "OK: no scriptless-polymod reference found."
+          fi
+
+      # ========================================
+      # CHECK ANDROID CONFIGURATION
+      # ========================================
+
+      - name: Check Android Configuration
+        run: |
+          echo "========================================"
+          echo "ANDROID CONFIGURATION"
+          echo "========================================"
+
+          grep -n "MODDING_ALLOWED" Project.xml || true
+          grep -n "DISCORD_ALLOWED" Project.xml || true
+          grep -n "LUA_ALLOWED" Project.xml || true
+
+          echo ""
+          echo "Project.xml:"
+          test -f Project.xml
+          echo "Project.xml OK."
 
       # ========================================
       # LIME SETUP
@@ -323,17 +360,23 @@ jobs:
           echo "========================================"
 
           test -f Project.xml
+
           echo "Project.xml found."
 
           echo "========================================"
-          echo "SCRIPTLESS POLYMOD"
+          echo "FINAL SCRIPTLESS CHECK"
           echo "========================================"
 
-          if grep -q "scriptless-polymod" Project.xml; then
-            echo "ERROR: scriptless-polymod is still present."
+          if grep -Rni \
+            --exclude-dir=.git \
+            --exclude-dir=.haxelib \
+            "scriptless-polymod" .; then
+
+            echo "ERROR: scriptless-polymod reference detected."
             exit 1
+
           else
-            echo "OK: scriptless-polymod is disabled for Android."
+            echo "OK: scriptless-polymod is completely absent."
           fi
 
           echo "========================================"
