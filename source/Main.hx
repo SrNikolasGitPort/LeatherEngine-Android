@@ -6,12 +6,20 @@ import ui.SimpleInfoDisplay;
 import flixel.FlxGame;
 import openfl.display.Sprite;
 
+#if mobile
+import mobile.MobileInput;
+#end
+
 class Main extends Sprite {
 	public function new() {
 		super();
 
 		CoolUtil.haxe_trace = haxe.Log.trace;
 		haxe.Log.trace = CoolUtil.haxe_print;
+
+		#if mobile
+		MobileInput.initialize();
+		#end
 
 		addChild(new FlxGame(0, 0, states.TitleState, 60, 60, true));
 
