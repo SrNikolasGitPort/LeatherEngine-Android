@@ -18,13 +18,14 @@
 	<!-- LEATHER ENGINE CUSTOMIZATION -->
 	<!-- Comment out or delete a line to disable a feature. -->
 
-	<define name="VIDEOS_ALLOWED" /> <!--  Allows support for video files -->
-	<define name="DISCORD_ALLOWED" /> <!--  Allows support for Discord Rich Presence -->
-	<define name="MODDING_ALLOWED" /> <!-- Allows mod loading -->
+	<!-- For Android we disable features that are desktop-only to reduce porting issues -->
+	<define name="VIDEOS_ALLOWED" if="desktop" /> <!--  Allows support for video files -->
+	<define name="DISCORD_ALLOWED" if="desktop" /> <!--  Allows support for Discord Rich Presence -->
+	<define name="MODDING_ALLOWED" if="desktop" /> <!-- Allows mod loading -->
 
 	<define name="MODCHARTING_TOOLS" /> <!--  Allows for Modcharting Tools to be used. -->
 
-	<define name="LUA_ALLOWED" /> <!--  Allows support for Lua scripting -->
+	<define name="LUA_ALLOWED" if="desktop" /> <!--  Allows support for Lua scripting -->
 	<define name="HSCRIPT_ALLOWED" /> <!--  Allows support for Haxe scripting (HScript) -->
 
 	<define name="CHECK_FOR_UPDATES" /> <!-- Allows the game to connect to GitHub to check for an
@@ -69,6 +70,9 @@
 		resizable="true"
 		vsync="false"
 	/>
+
+	<!-- Android-specific window defaults -->
+	<window if="android" orientation="landscape" fullscreen="true" resizable="false" vsync="false" />
 
 	<!-- Path Settings. -->
 
