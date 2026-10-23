@@ -21,6 +21,10 @@ This is the repository for Leather Engine, an engine created for making and play
 
 - [Some Mod Ports](https://github.com/Leather128/LeathersFNFModPorts)
 
+## Android
+
+This fork can be built for Android, see the Android section of [BUILD.md](build/BUILD.md).
+
 ## For macOS users
 If the game doesn't launch, try running
 ```sh
