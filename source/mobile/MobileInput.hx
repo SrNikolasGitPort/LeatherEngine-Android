@@ -1,202 +1,447 @@
 package mobile;
 
+#if mobile
+import flixel.FlxG;
+import flixel.input.keyboard.FlxKey;
 import haxe.Json;
 import lime.utils.Assets;
+import openfl.Lib;
 import openfl.display.Sprite;
+import openfl.events.Event;
 import openfl.events.KeyboardEvent;
 import openfl.events.TouchEvent;
-import openfl.Lib;
+import openfl.text.TextField;
+import openfl.text.TextFieldAutoSize;
+import openfl.text.TextFormat;
+import openfl.text.TextFormatAlign;
 import openfl.ui.Keyboard;
+import openfl.ui.Multitouch;
+import openfl.ui.MultitouchInputMode;
+import states.PlayState;
+import states.TitleState;
 
+/**
+ * Which set of touch controls is on screen.
+ */
+private enum Mode {
+	/**
+	 * Menus: a D-pad plus accept / back buttons.
+	 */
+	MENU;
+
+	/**
+	 * Playing a song: the whole screen is split into one lane per note column.
+	 */
+	GAME;
+}
+
+/**
+ * A single on screen button that holds down a keyboard key while it is touched.
+ */
+private class VirtualButton extends Sprite {
+	public var keyCode(default, null):Int;
+	public var size(default, null):Float;
+
+	var label:TextField;
+	var pressed:Bool = false;
+	var baseAlpha:Float;
+
+	public function new(keyCode:Int, text:String, x:Float, y:Float, size:Float, baseAlpha:Float) {
+		super();
+		this.keyCode = keyCode;
+		this.size = size;
+		this.baseAlpha = baseAlpha;
+
+		mouseEnabled = false;
+		mouseChildren = false;
+
+		label = new TextField();
+		label.selectable = false;
+		label.mouseEnabled = false;
+		label.autoSize = TextFieldAutoSize.NONE;
+		label.width = size;
+		label.defaultTextFormat = new TextFormat("_sans", Std.int(size * (text.length > 2 ? 0.28 : 0.45)), 0xFFFFFF, true, null, null, null, null,
+			TextFormatAlign.CENTER);
+		label.text = text;
+		label.height = size;
+		label.y = (size - label.textHeight) / 2 - 3;
+		addChild(label);
+
+		this.x = x;
+		this.y = y;
+		redraw();
+	}
+
+	public function hits(stageX:Float, stageY:Float):Bool {
+		// a bit of slack around the visible button makes them way easier to hit
+		var slack:Float = size * 0.15;
+		return stageX >= x - slack && stageX <= x + size + slack && stageY >= y - slack && stageY <= y + size + slack;
+	}
+
+	public function setPressed(value:Bool):Void {
+		if (pressed == value)
+			return;
+		pressed = value;
+		redraw();
+	}
+
+	function redraw():Void {
+		graphics.clear();
+		graphics.lineStyle(3, 0xFFFFFF, pressed ? 0.9 : baseAlpha + 0.2);
+		graphics.beginFill(pressed ? 0x5FCBFF : 0x000000, pressed ? 0.55 : baseAlpha);
+		graphics.drawRoundRect(0, 0, size, size, size * 0.3, size * 0.3);
+		graphics.endFill();
+	}
+}
+
+/**
+ * On screen touch controls.
+ *
+ * The engine reads its input from the keyboard (`FlxG.keys` and `Controls`), so instead of changing every state
+ * the touch controls simply press and release the same keys the player would use, this means
+ * the key binds set in the options menu are respected and every mod / script keeps working.
+ *
+ * - In menus a D-pad and accept / back buttons are shown. Touching the screen also works like a mouse click (handled by Flixel).
+ * - While playing a song the screen is split into one lane per note column (using the player's binds for that key count)
+ *   and there is a pause button in the top right corner.
+ *
+ * Optional settings are read from `mobile_config.json`:
+ * ```json
+ * {
+ *   "overlayEnabled": true,   // show the buttons / lane guides
+ *   "buttonAlpha": 0.35,      // how visible the buttons are
+ *   "slideLanes": false       // let a finger slide from one lane to another while holding
+ * }
+ * ```
+ */
 class MobileInput extends Sprite {
 	static var instance:MobileInput;
 
-	var touchIdToColumn:Map<Int, Int> = new Map();
-	var touchIdToStartX:Map<Int, Float> = new Map();
-	var touchIdToStartY:Map<Int, Float> = new Map();
-	var debugEnabled:Bool = true;
+	var mode:Mode = MENU;
+	var layoutKey:String = "";
+	var frame:Int = 0;
+
+	var overlayEnabled:Bool = true;
+	var buttonAlpha:Float = 0.35;
+	var slideLanes:Bool = false;
+
+	var buttons:Array<VirtualButton> = [];
+	var laneKeys:Array<Int> = [];
+
+	/**
+	 * Which button / lane each finger is currently holding.
+	 */
+	var touchButtons:Map<Int, VirtualButton> = new Map();
+
+	var touchLanes:Map<Int, Int> = new Map();
+
+	/**
+	 * How many fingers hold each key and the frame it was pressed on.
+	 */
+	var keyHolds:Map<Int, Int> = new Map();
+
+	var keyPressFrame:Map<Int, Int> = new Map();
+	var pendingReleases:Array<Int> = [];
 
 	public static function initialize():Void {
-		if (instance != null)
+		if (instance != null || Lib.current == null || Lib.current.stage == null)
 			return;
+
+		Multitouch.inputMode = MultitouchInputMode.TOUCH_POINT;
 
 		instance = new MobileInput();
-		if (Lib.current == null || Lib.current.stage == null)
-			return;
 
-		Lib.current.stage.addChild(instance);
-		Lib.current.stage.addEventListener(TouchEvent.TOUCH_BEGIN, instance.onTouchBegin);
-		Lib.current.stage.addEventListener(TouchEvent.TOUCH_MOVE, instance.onTouchMove);
-		Lib.current.stage.addEventListener(TouchEvent.TOUCH_END, instance.onTouchEnd);
-		Lib.current.stage.addEventListener(TouchEvent.TOUCH_OUT, instance.onTouchEnd);
-		instance.layoutOverlay();
+		var stage = Lib.current.stage;
+		stage.addChild(instance);
+		stage.addEventListener(TouchEvent.TOUCH_BEGIN, instance.onTouchBegin);
+		stage.addEventListener(TouchEvent.TOUCH_MOVE, instance.onTouchMove);
+		stage.addEventListener(TouchEvent.TOUCH_END, instance.onTouchEnd);
+		stage.addEventListener(Event.ENTER_FRAME, instance.onFrame);
+		stage.addEventListener(Event.DEACTIVATE, instance.onDeactivate);
 	}
 
 	function new() {
 		super();
 		mouseEnabled = false;
 		mouseChildren = false;
-		var config = readConfig();
-		if (config != null && Reflect.hasField(config, "overlayEnabled"))
-			debugEnabled = Reflect.field(config, "overlayEnabled") == true;
+		readConfig();
 	}
 
-	function readConfig():Dynamic {
+	function readConfig():Void {
 		try {
 			if (Assets.exists("mobile_config.json")) {
-				var text = Assets.getText("mobile_config.json");
-				if (text != null && text.length > 0)
-					return Json.parse(text);
+				var config:Dynamic = Json.parse(Assets.getText("mobile_config.json"));
+				if (Reflect.hasField(config, "overlayEnabled"))
+					overlayEnabled = Reflect.field(config, "overlayEnabled") == true;
+				if (Reflect.hasField(config, "buttonAlpha"))
+					buttonAlpha = Math.max(0.05, Math.min(1, Reflect.field(config, "buttonAlpha")));
+				if (Reflect.hasField(config, "slideLanes"))
+					slideLanes = Reflect.field(config, "slideLanes") == true;
 			}
 		} catch (e:Dynamic) {
-			// Ignore invalid config and fall back to defaults.
+			// invalid config, the defaults are fine
+		}
+	}
+
+	// ------------------------------------------------------------------ layout
+
+	function onFrame(_:Event):Void {
+		frame++;
+
+		var newMode:Mode = getWantedMode();
+		var newKey:String = '$newMode:${Lib.current.stage.stageWidth}x${Lib.current.stage.stageHeight}';
+
+		if (newMode == GAME) {
+			laneKeys = getLaneKeys();
+			newKey += ':${laneKeys.join(",")}';
+		} else if (FlxG.state is TitleState) {
+			newKey += ":title";
+		}
+
+		if (newKey != layoutKey) {
+			releaseEverything();
+			mode = newMode;
+			layoutKey = newKey;
+			buildLayout();
+		}
+
+		// a key must stay down for a couple of frames, otherwise very quick taps could
+		// be pressed and released before the game ever gets to see them
+		var i:Int = pendingReleases.length;
+		while (i-- > 0) {
+			var code:Int = pendingReleases[i];
+			if (frame >= keyPressFrame.get(code) + 2) {
+				pendingReleases.splice(i, 1);
+				dispatchKey(code, false);
+			}
+		}
+	}
+
+	function getWantedMode():Mode {
+		var state = FlxG.state;
+		if (state is PlayState && state.subState == null)
+			return GAME;
+		return MENU;
+	}
+
+	/**
+	 * The keys of every lane, taken from the player's binds for the current key count.
+	 */
+	function getLaneKeys():Array<Int> {
+		var keys:Array<Int> = [];
+
+		try {
+			var count:Int = PlayState.SONG.playerKeyCount;
+			var binds:Array<String> = Options.getData("binds", "binds")[count - 1];
+
+			for (bind in binds)
+				keys.push(FlxKey.fromString(bind));
+		} catch (e:Dynamic) {
+			keys = [];
+		}
+
+		if (keys.length == 0)
+			keys = [Keyboard.LEFT, Keyboard.DOWN, Keyboard.UP, Keyboard.RIGHT];
+
+		return keys;
+	}
+
+	function getPauseKey():Int {
+		try {
+			var key:Int = FlxKey.fromString(Options.getData("pauseBind", "binds"));
+			if (key > 0)
+				return key;
+		} catch (e:Dynamic) {}
+		return Keyboard.ENTER;
+	}
+
+	function buildLayout():Void {
+		for (button in buttons)
+			removeChild(button);
+		buttons = [];
+		graphics.clear();
+
+		var stageWidth:Float = Lib.current.stage.stageWidth;
+		var stageHeight:Float = Lib.current.stage.stageHeight;
+
+		switch (mode) {
+			case GAME:
+				if (overlayEnabled) {
+					// faint guides so the player can see where every lane is
+					var laneWidth:Float = stageWidth / laneKeys.length;
+					graphics.lineStyle(2, 0xFFFFFF, 0.12);
+					for (i in 1...laneKeys.length) {
+						graphics.moveTo(laneWidth * i, stageHeight * 0.35);
+						graphics.lineTo(laneWidth * i, stageHeight);
+					}
+				}
+
+				var size:Float = Math.min(stageWidth, stageHeight) * 0.11;
+				addButton(getPauseKey(), "II", stageWidth - size - size * 0.4, size * 0.4, size);
+			case MENU:
+				{
+					var size:Float = Math.min(stageWidth, stageHeight) * 0.14;
+					var margin:Float = size * 0.35;
+
+					// D-pad (bottom left)
+					var dpadX:Float = margin;
+					var dpadY:Float = stageHeight - margin - size * 3;
+					addButton(Keyboard.UP, "▲", dpadX + size, dpadY, size);
+					addButton(Keyboard.LEFT, "◀", dpadX, dpadY + size, size);
+					addButton(Keyboard.RIGHT, "▶", dpadX + size * 2, dpadY + size, size);
+					addButton(Keyboard.DOWN, "▼", dpadX + size, dpadY + size * 2, size);
+
+					// accept / back (bottom right)
+					var bigSize:Float = size * 1.15;
+					addButton(Keyboard.ENTER, "A", stageWidth - margin - bigSize, stageHeight - margin - bigSize * 1.9, bigSize);
+					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - bigSize * 2.2, stageHeight - margin - bigSize, bigSize);
+
+					#if MODDING_ALLOWED
+					// the mod switcher lives on TAB in the title screen
+					if (FlxG.state is TitleState)
+						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
+					#end
+				}
+		}
+	}
+
+	function addButton(keyCode:Int, text:String, x:Float, y:Float, size:Float):Void {
+		var button:VirtualButton = new VirtualButton(keyCode, text, x, y, size, buttonAlpha);
+		// with the overlay turned off the buttons are invisible but can still be touched
+		button.visible = overlayEnabled;
+		buttons.push(button);
+		addChild(button);
+	}
+
+	// ------------------------------------------------------------------ touch handling
+
+	function getButtonAt(x:Float, y:Float):Null<VirtualButton> {
+		for (button in buttons) {
+			if (button.hits(x, y))
+				return button;
 		}
 		return null;
 	}
 
-	function layoutOverlay():Void {
-		graphics.clear();
-		if (!debugEnabled || Lib.current == null || Lib.current.stage == null)
-			return;
-
-		var stageWidth:Float = Lib.current.stage.stageWidth;
-		var stageHeight:Float = Lib.current.stage.stageHeight;
-		var columns:Int = getColumnCount();
-		var segmentWidth:Float = stageWidth / columns;
-		var bottomY:Float = stageHeight * 0.55;
-		var bottomHeight:Float = stageHeight * 0.45;
-
-		graphics.beginFill(0x5fcbff, 0.12);
-		for (i in 0...columns) {
-			var x:Float = i * segmentWidth + 2;
-			graphics.drawRect(x, bottomY, segmentWidth - 4, bottomHeight);
-		}
-		graphics.endFill();
+	function getLaneAt(x:Float):Int {
+		var count:Int = laneKeys.length;
+		var lane:Int = Std.int(x / (Lib.current.stage.stageWidth / count));
+		return Std.int(Math.max(0, Math.min(count - 1, lane)));
 	}
 
 	function onTouchBegin(event:TouchEvent):Void {
 		var id:Int = event.touchPointID;
-		var x:Float = event.stageX;
-		var y:Float = event.stageY;
-		touchIdToStartX.set(id, x);
-		touchIdToStartY.set(id, y);
 
-		if (isGameplayTouch(x, y)) {
-			var col:Int = getGameplayColumn(x);
-			touchIdToColumn.set(id, col);
-			if (col != null)
-				dispatchKey(keyCodeForColumn(col), true);
+		var button:Null<VirtualButton> = getButtonAt(event.stageX, event.stageY);
+		if (button != null) {
+			touchButtons.set(id, button);
+			button.setPressed(true);
+			pressKey(button.keyCode);
 			return;
 		}
 
-		// Menu navigation / general engine controls.
-		var dx:Float = x - touchIdToStartX.get(id);
-		var dy:Float = y - touchIdToStartY.get(id);
-		if (Math.abs(dx) > 60 || Math.abs(dy) > 60) {
-			if (Math.abs(dx) > Math.abs(dy)) {
-				dispatchKey(dx > 0 ? Keyboard.RIGHT : Keyboard.LEFT, true);
-			} else {
-				dispatchKey(dy > 0 ? Keyboard.DOWN : Keyboard.UP, true);
-			}
-			return;
+		if (mode == GAME) {
+			var lane:Int = getLaneAt(event.stageX);
+			touchLanes.set(id, lane);
+			pressKey(laneKeys[lane]);
 		}
-
-		dispatchKey(Keyboard.ENTER, true);
 	}
 
 	function onTouchMove(event:TouchEvent):Void {
+		if (mode != GAME || !slideLanes)
+			return;
+
 		var id:Int = event.touchPointID;
-		if (!touchIdToColumn.exists(id))
+		if (!touchLanes.exists(id))
 			return;
 
-		var currentCol:Int = getGameplayColumn(event.stageX);
-		var previousCol:Int = touchIdToColumn.get(id);
-		if (previousCol == currentCol)
+		var previous:Int = touchLanes.get(id);
+		var current:Int = getLaneAt(event.stageX);
+		if (previous == current)
 			return;
 
-		dispatchKey(keyCodeForColumn(previousCol), false);
-		if (currentCol != null) {
-			touchIdToColumn.set(id, currentCol);
-			dispatchKey(keyCodeForColumn(currentCol), true);
-		} else {
-			touchIdToColumn.remove(id);
-		}
+		releaseKey(laneKeys[previous]);
+		touchLanes.set(id, current);
+		pressKey(laneKeys[current]);
 	}
 
 	function onTouchEnd(event:TouchEvent):Void {
 		var id:Int = event.touchPointID;
-		if (touchIdToColumn.exists(id)) {
-			dispatchKey(keyCodeForColumn(touchIdToColumn.get(id)), false);
-			touchIdToColumn.remove(id);
+
+		if (touchButtons.exists(id)) {
+			var button:VirtualButton = touchButtons.get(id);
+			touchButtons.remove(id);
+			button.setPressed(false);
+			releaseKey(button.keyCode);
+		}
+
+		if (touchLanes.exists(id)) {
+			var lane:Int = touchLanes.get(id);
+			touchLanes.remove(id);
+			if (lane < laneKeys.length)
+				releaseKey(laneKeys[lane]);
 		}
 	}
 
-	static function getColumnCount():Int {
-		var config:Dynamic = null;
-		try {
-			if (Assets.exists("mobile_config.json")) {
-				config = Json.parse(Assets.getText("mobile_config.json"));
-			}
-		} catch (e:Dynamic) {
-			config = null;
+	function onDeactivate(_:Event):Void {
+		// the app went to the background, don't leave keys stuck
+		releaseEverything();
+	}
+
+	function releaseEverything():Void {
+		for (button in touchButtons)
+			button.setPressed(false);
+
+		touchButtons.clear();
+		touchLanes.clear();
+
+		for (code in pendingReleases)
+			dispatchKey(code, false);
+		pendingReleases = [];
+
+		for (code in keyHolds.keys()) {
+			if (keyHolds.get(code) > 0)
+				dispatchKey(code, false);
 		}
-		if (config != null && Reflect.hasField(config, "columns")) {
-			var value:Int = Std.int(Reflect.field(config, "columns"));
-			if (value > 0)
-				return value;
+		keyHolds.clear();
+	}
+
+	// ------------------------------------------------------------------ keys
+
+	function pressKey(code:Int):Void {
+		var holds:Int = keyHolds.exists(code) ? keyHolds.get(code) : 0;
+		keyHolds.set(code, holds + 1);
+
+		// it's being held again so a release that was waiting is cancelled
+		pendingReleases.remove(code);
+
+		if (holds == 0) {
+			keyPressFrame.set(code, frame);
+			dispatchKey(code, true);
 		}
-		return 4;
 	}
 
-	static function isGameplayTouch(x:Float, y:Float):Bool {
-		if (Lib.current == null || Lib.current.stage == null)
-			return false;
-		return y >= Lib.current.stage.stageHeight * 0.55;
-	}
+	function releaseKey(code:Int):Void {
+		var holds:Int = keyHolds.exists(code) ? keyHolds.get(code) : 0;
+		if (holds <= 0)
+			return;
 
-	static function getGameplayColumn(x:Float):Int {
-		if (Lib.current == null || Lib.current.stage == null)
-			return null;
-		var count:Int = getColumnCount();
-		var segment:Float = Lib.current.stage.stageWidth / count;
-		var index:Int = Std.int(x / segment);
-		return Math.max(0, Math.min(count - 1, index));
-	}
+		keyHolds.set(code, holds - 1);
+		if (holds - 1 > 0)
+			return;
 
-	static function keyCodeForColumn(column:Int):Int {
-		var columns:Int = getColumnCount();
-		var index:Int = Std.int(Math.abs(column)) % columns;
-		var codes:Array<Int> = [
-			Keyboard.LEFT,
-			Keyboard.DOWN,
-			Keyboard.UP,
-			Keyboard.RIGHT,
-			Keyboard.A,
-			Keyboard.S,
-			Keyboard.W,
-			Keyboard.D,
-			Keyboard.F,
-			Keyboard.G,
-			Keyboard.H,
-			Keyboard.J,
-			Keyboard.K,
-			Keyboard.L,
-			Keyboard.Z,
-			Keyboard.X,
-			Keyboard.C,
-			Keyboard.V,
-			Keyboard.B,
-			Keyboard.N,
-			Keyboard.M
-		];
-		return codes[Math.max(0, Math.min(codes.length - 1, index))];
+		if (frame >= keyPressFrame.get(code) + 2)
+			dispatchKey(code, false);
+		else
+			pendingReleases.push(code);
 	}
 
 	static function dispatchKey(code:Int, down:Bool):Void {
-		if (code == 0 || Lib.current == null || Lib.current.stage == null)
+		if (code <= 0 || Lib.current == null || Lib.current.stage == null)
 			return;
+
 		var type:String = down ? KeyboardEvent.KEY_DOWN : KeyboardEvent.KEY_UP;
-		var event:KeyboardEvent = new KeyboardEvent(type, true, false, 0, code, 0, false, false, false, false);
-		Lib.current.stage.dispatchEvent(event);
+		Lib.current.stage.dispatchEvent(new KeyboardEvent(type, true, false, 0, code, 0, false, false, false, false));
 	}
 }
+#end

@@ -48,3 +48,28 @@ haxelib remove library
 replacing library with the name of the library you would like to remove
 and then re install it with the commands in step 4
 
+
+
+# Android
+
+The easiest way is the **Build Android** GitHub Action (`.github/workflows/Android.yml`): run it from the Actions tab and download the `LeatherEngine-Android` artifact (an APK for 64 bit ARM devices, Android 9+).
+
+To build it yourself you need, on top of the steps above:
+
+* Java 17
+* Android SDK platform 35, build-tools 35.0.0 and NDK r27c (`27.2.12479018`)
+
+```sh
+haxelib run lime config ANDROID_SDK /path/to/android-sdk
+haxelib run lime config ANDROID_NDK_ROOT /path/to/android-sdk/ndk/27.2.12479018
+haxelib run lime config JAVA_HOME /path/to/jdk-17
+haxelib run lime config ANDROID_SETUP true
+haxelib run lime build android -release -arm64
+```
+
+## How it works on Android
+
+* The touch controls live in `source/mobile/MobileInput.hx`. They press and release the same keys a keyboard would, so your key binds, the options menu and every mod keep working. Menus get a D-pad plus A / B buttons, songs get one lane per column over the whole screen and a pause button. The look can be tweaked in `assets/mobile_config.json`.
+* Assets live inside the APK, but Polymod needs real files. On the first launch (and after an update) `source/mobile/MobileFiles.hx` copies the bundled `mods/` folder to the app's storage folder and uses it as the working directory.
+* **Adding mods:** copy them into `Android/data/com.leather128.funkin/files/mods/` using a file manager or by connecting the phone to a computer.
+* Lua scripts, video cutscenes and Discord Rich Presence are desktop only for now (HScript works).
