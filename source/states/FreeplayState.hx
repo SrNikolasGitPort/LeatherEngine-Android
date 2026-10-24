@@ -149,7 +149,9 @@ class FreeplayState extends MusicBeatState {
 		speedText.alignment = RIGHT;
 
 		#if (target.threaded)
-		if (!Options.getData("loadAsynchronously") || !Options.getData("healthIcons")) {
+		// on phones the list is always built on the main thread: creating sprites / textures from another thread
+		// while the game renders crashes the app
+		if (#if mobile true || #end !Options.getData("loadAsynchronously") || !Options.getData("healthIcons")) {
 		#end
 			for (i => song in songs) {
 				var songText:Alphabet = new Alphabet(0, (70 * i) + 30, song.name, true, false);
