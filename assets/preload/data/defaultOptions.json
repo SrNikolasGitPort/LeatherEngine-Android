@@ -1,6 +1,22 @@
 {
 	"options": [
 		{
+			"option": "hitboxVisible",
+			"value": true
+		},
+		{
+			"option": "hitboxOpacity",
+			"value": 20
+		},
+		{
+			"option": "mobileFullscreen",
+			"value": true
+		},
+		{
+			"option": "storageLocation",
+			"value": "EXTERNAL"
+		},
+		{
 			"option": "enemyStrumsGlow",
 			"value": true
 		},

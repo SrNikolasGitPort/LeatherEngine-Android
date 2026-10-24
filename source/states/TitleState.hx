@@ -76,6 +76,10 @@ class TitleState extends MusicBeatState {
 
 			Options.init();
 
+			#if mobile
+			mobile.MobileSettings.applyFullscreen();
+			#end
+
 			LogStyle.ERROR.throwException = Options.getData("throwExceptionOnError");
 
 			FlxG.allowAntialiasing = FlxSprite.defaultAntialiasing = Options.getData("antialiasing");
