@@ -117,6 +117,10 @@ class BoolOption extends Option {
 				FlxG.allowAntialiasing = FlxSprite.defaultAntialiasing = optionChecked;
 			case "throwExceptionOnError":
 				LogStyle.ERROR.throwException = optionChecked;
+			#if mobile
+			case "mobileFullscreen":
+				mobile.MobileSettings.applyFullscreen(optionChecked);
+			#end
 		}
 	}
 }
@@ -462,6 +466,24 @@ class StepperSaveOption extends Option {
 		add(alphabetText);
 	}
 }
+
+#if mobile
+/**
+ * Picks where the engine folder (with the mods) is on Android. It's used the next time the game opens.
+ */
+class StorageLocationOption extends StringSaveOption {
+	override function setData() {
+		super.setData();
+
+		// the folder is needed before the options are loaded, so it's also remembered in a small file
+		mobile.MobileFiles.setStorageMode(currentMode);
+
+		// ask for the access right away so the game doesn't have to ask on the next launch
+		if (currentMode == "EXTERNAL" && !mobile.MobileFiles.hasStorageAccess())
+			mobile.MobileFiles.requestStorageAccess();
+	}
+}
+#end
 
 class DisplayFontOption extends StringSaveOption {
 	override function setData() {

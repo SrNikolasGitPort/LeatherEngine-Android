@@ -15,23 +15,41 @@ import lime.system.JNI;
  *
  * Mods (and the base game "mod" that ships with the engine) are read straight from the disk by Polymod,
  * but on Android the assets are packed inside the APK where `sys.FileSystem` can't see them.
- * So on the first launch (and after every update) the bundled `mods/` folder is copied to the app's storage
- * folder, and the working directory is moved there. This also gives the user a normal folder to drop their own mods into:
+ * So every time the game opens it makes sure the needed files were copied from the APK to the engine folder
+ * (only the first launch and after an update actually copy something), and moves the working directory there.
+ * That folder is also where the user drops their own mods (`<engine folder>/mods/`).
  *
- * `Android/data/<package name>/files/mods/`
+ * Where the engine folder is can be changed in `Options > Mobile Options > Storage`:
+ *
+ * | Mode       | Folder                                           |
+ * |------------|--------------------------------------------------|
+ * | `EXTERNAL` | `/storage/emulated/0/.Leather1.1.9` (default)    |
+ * | `DATA`     | `Android/data/<package name>/files`              |
+ * | `MEDIA`    | `Android/media/<package name>`                   |
+ * | `OBB`      | `Android/obb/<package name>`                     |
+ *
+ * `EXTERNAL` needs the "all files access" permission, the others don't need any permission.
  */
 class MobileFiles {
 	/**
-	 * Increase this if the bundled mods change in a way that needs to be copied again.
+	 * Every place the engine folder can be.
 	 */
-	static inline var SETUP_VERSION:Int = 1;
+	public static final STORAGE_MODES:Array<String> = ["EXTERNAL", "DATA", "MEDIA", "OBB"];
 
-	static inline var MARKER:String = ".leather_setup";
+	public static inline var DEFAULT_MODE:String = "EXTERNAL";
 
 	/**
-	 * The folder the game uses as its working directory on mobile.
+	 * Name of the engine folder inside of the `EXTERNAL` storage.
 	 */
-	public static var storageDirectory(get, null):String;
+	public static inline var EXTERNAL_FOLDER_NAME:String = ".Leather1.1.9";
+
+	/**
+	 * Increase this if the bundled mods change in a way that needs to be copied again.
+	 */
+	static inline var SETUP_VERSION:Int = 2;
+
+	static inline var MARKER:String = ".leather_setup";
+	static inline var MODE_FILE:String = "storage_mode.txt";
 
 	/**
 	 * Gets set to a value between `0` and `1` while `copyBundledFiles` is running.
@@ -48,52 +66,156 @@ class MobileFiles {
 	 */
 	public static var error(default, null):Null<String> = null;
 
+	/**
+	 * The folder the game uses as its working directory on mobile.
+	 */
+	public static var storageDirectory(get, never):String;
+
 	static var _storageDirectory:String = null;
+
+	// ------------------------------------------------------------------ storage mode
+
+	/**
+	 * The private app folder. It always exists and doesn't need any permission, this is where the chosen mode is remembered
+	 * (the options can't be used for that because they're loaded after the engine folder is known).
+	 */
+	static function getInternalDirectory():String {
+		var dir:String = getNativeDirectory("INTERNAL");
+		if (dir == "")
+			dir = LimeSystem.applicationStorageDirectory;
+		return dir;
+	}
+
+	/**
+	 * @return the storage mode picked in the options.
+	 */
+	public static function getStorageMode():String {
+		try {
+			var file:String = Path.join([getInternalDirectory(), MODE_FILE]);
+			if (FileSystem.exists(file)) {
+				var mode:String = File.getContent(file).trim().toUpperCase();
+				if (STORAGE_MODES.contains(mode))
+					return mode;
+			}
+		} catch (e:Dynamic) {}
+		return DEFAULT_MODE;
+	}
+
+	/**
+	 * Remembers the storage mode, it is used the next time the game opens.
+	 */
+	public static function setStorageMode(mode:String):Void {
+		try {
+			File.saveContent(Path.join([getInternalDirectory(), MODE_FILE]), mode);
+		} catch (e:Dynamic) {}
+	}
+
+	/**
+	 * Gets the folder a certain mode uses, `null` if the device doesn't have it.
+	 */
+	public static function getDirectoryForMode(mode:String):Null<String> {
+		var base:String = getNativeDirectory(mode);
+
+		if (base == "") {
+			// no JNI (or the folder doesn't exist on this device)
+			if (mode == "DATA" || mode == "INTERNAL")
+				base = LimeSystem.applicationStorageDirectory;
+			else
+				return null;
+		}
+
+		if (mode == "EXTERNAL")
+			base = Path.join([base, EXTERNAL_FOLDER_NAME]);
+
+		return Path.removeTrailingSlashes(Path.normalize(base));
+	}
+
+	/**
+	 * Returns `true` if the game can use the folder of the chosen storage mode right now.
+	 */
+	public static function hasStorageAccess():Bool {
+		if (getStorageMode() != "EXTERNAL")
+			return true;
+
+		#if android
+		try {
+			var hasAccess:Dynamic = JNI.createStaticMethod("com/leather128/funkin/MobileStorage", "hasStorageAccess", "()Z");
+			return hasAccess() == true;
+		} catch (e:Dynamic) {
+			return false;
+		}
+		#else
+		return true;
+		#end
+	}
+
+	/**
+	 * Opens the system screen where the player can allow the game to use the `EXTERNAL` storage.
+	 */
+	public static function requestStorageAccess():Void {
+		#if android
+		try {
+			var request:Dynamic = JNI.createStaticMethod("com/leather128/funkin/MobileStorage", "requestStorageAccess", "()V");
+			request();
+		} catch (e:Dynamic) {}
+		#end
+	}
+
+	static function getNativeDirectory(mode:String):String {
+		#if android
+		try {
+			var getDir:Dynamic = JNI.createStaticMethod("com/leather128/funkin/MobileStorage", "getDir", "(Ljava/lang/String;)Ljava/lang/String;");
+			var dir:String = getDir(mode);
+			return dir == null ? "" : dir;
+		} catch (e:Dynamic) {}
+		#end
+		return "";
+	}
 
 	static function get_storageDirectory():String {
 		if (_storageDirectory != null)
 			return _storageDirectory;
 
-		var dir:String = null;
+		var mode:String = getStorageMode();
+		var dir:Null<String> = getDirectoryForMode(mode);
 
-		#if android
-		try {
-			// app specific "external" storage: no permissions needed and the user can reach it with a file manager / USB
-			var getContext:Dynamic = JNI.createStaticMethod("org/libsdl/app/SDLActivity", "getContext", "()Landroid/content/Context;");
-			var getExternalFilesDir:Dynamic = JNI.createMemberMethod("android/content/Context", "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;");
-			var getAbsolutePath:Dynamic = JNI.createMemberMethod("java/io/File", "getAbsolutePath", "()Ljava/lang/String;");
-
-			var file:Dynamic = getExternalFilesDir(getContext(), "");
-			if (file != null)
-				dir = getAbsolutePath(file);
-		} catch (e:Dynamic) {
-			dir = null;
-		}
-		#end
-
-		// fallback: the internal app storage
-		if (dir == null || dir.length == 0)
-			dir = LimeSystem.applicationStorageDirectory;
-
-		dir = Path.removeTrailingSlashes(Path.normalize(dir));
-
-		try {
-			if (!FileSystem.exists(dir))
-				FileSystem.createDirectory(dir);
-		} catch (e:Dynamic) {}
+		// can't use the chosen folder (no permission or the device doesn't have it), fall back to the app folder
+		if (dir == null || !canWriteTo(dir))
+			dir = getDirectoryForMode("DATA");
 
 		_storageDirectory = dir;
 		return dir;
 	}
 
+	static function canWriteTo(dir:String):Bool {
+		try {
+			createDirectories(dir);
+			var test:String = Path.join([dir, ".write_test"]);
+			File.saveContent(test, "ok");
+			FileSystem.deleteFile(test);
+			return true;
+		} catch (e:Dynamic) {
+			return false;
+		}
+	}
+
 	/**
-	 * Moves the working directory to the storage folder so every relative path (`mods/...`, `crash/...`, etc.) works.
+	 * Forgets the folder that was found so it's looked up again (used after the player allowed or changed something).
+	 */
+	public static function refreshStorageDirectory():Void {
+		_storageDirectory = null;
+	}
+
+	// ------------------------------------------------------------------ setup
+
+	/**
+	 * Moves the working directory to the engine folder so every relative path (`mods/...`, `crash/...`, etc.) works.
 	 */
 	public static function setWorkingDirectory():Void {
 		try {
 			Sys.setCwd(storageDirectory);
 		} catch (e:Dynamic) {
-			error = 'Could not open the storage directory "$storageDirectory": $e';
+			error = 'Could not open the engine folder "$storageDirectory": $e';
 		}
 	}
 

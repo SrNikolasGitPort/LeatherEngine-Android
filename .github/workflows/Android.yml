@@ -60,6 +60,12 @@ jobs:
           haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
           haxelib list
 
+      # lime is installed from git, so its command line tool has to be compiled before it can be used.
+      - name: Build the lime command line tool
+        run: |
+          cd "$(haxelib libpath lime)/tools"
+          haxe run.hxml
+
       # Tells lime where the Android tools are, this replaces the interactive `lime setup android`.
       - name: Configure lime for Android
         run: |

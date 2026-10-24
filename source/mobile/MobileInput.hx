@@ -17,8 +17,10 @@ import openfl.text.TextFormatAlign;
 import openfl.ui.Keyboard;
 import openfl.ui.Multitouch;
 import openfl.ui.MultitouchInputMode;
+import shaders.NoteColors;
 import states.PlayState;
 import states.TitleState;
+import utilities.NoteVariables;
 
 /**
  * Which set of touch controls is on screen.
@@ -95,6 +97,51 @@ private class VirtualButton extends Sprite {
 }
 
 /**
+ * One lane of the hitbox: a tall transparent column in the color of the arrow, it lights up while it's touched.
+ */
+private class HitboxLane extends Sprite {
+	var laneWidth:Float;
+	var laneHeight:Float;
+	var color:Int;
+	var opacity:Float;
+	var pressed:Bool = false;
+
+	public function new(x:Float, laneWidth:Float, laneHeight:Float, color:Int, opacity:Float) {
+		super();
+		this.laneWidth = laneWidth;
+		this.laneHeight = laneHeight;
+		this.color = color;
+		this.opacity = opacity;
+
+		mouseEnabled = false;
+		mouseChildren = false;
+
+		this.x = x;
+		redraw();
+	}
+
+	public function setPressed(value:Bool):Void {
+		if (pressed == value)
+			return;
+		pressed = value;
+		redraw();
+	}
+
+	function redraw():Void {
+		graphics.clear();
+
+		// the column itself
+		graphics.beginFill(color, pressed ? Math.min(1, opacity * 2.4) : opacity);
+		graphics.drawRect(0, 0, laneWidth, laneHeight);
+		graphics.endFill();
+
+		// a brighter edge on the sides so the lanes are easy to tell apart
+		graphics.lineStyle(2, color, pressed ? 0.9 : Math.min(1, opacity * 2));
+		graphics.drawRect(1, 1, laneWidth - 2, laneHeight - 2);
+	}
+}
+
+/**
  * On screen touch controls.
  *
  * The engine reads its input from the keyboard (`FlxG.keys` and `Controls`), so instead of changing every state
@@ -126,7 +173,15 @@ class MobileInput extends Sprite {
 	var slideLanes:Bool = false;
 
 	var buttons:Array<VirtualButton> = [];
+	var lanes:Array<HitboxLane> = [];
 	var laneKeys:Array<Int> = [];
+	var laneColors:Array<Int> = [];
+
+	/**
+	 * Settings from `Options > Mobile Options`.
+	 */
+	var hitboxVisible:Bool = true;
+	var hitboxOpacity:Float = 0.2;
 
 	/**
 	 * Which button / lane each finger is currently holding.
@@ -191,9 +246,11 @@ class MobileInput extends Sprite {
 		var newMode:Mode = getWantedMode();
 		var newKey:String = '$newMode:${Lib.current.stage.stageWidth}x${Lib.current.stage.stageHeight}';
 
+		readOptions();
+
 		if (newMode == GAME) {
 			laneKeys = getLaneKeys();
-			newKey += ':${laneKeys.join(",")}';
+			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity';
 		} else if (FlxG.state is TitleState) {
 			newKey += ":title";
 		}
@@ -203,6 +260,12 @@ class MobileInput extends Sprite {
 			mode = newMode;
 			layoutKey = newKey;
 			buildLayout();
+		}
+
+		// light up the lanes that are being held
+		for (i in 0...lanes.length) {
+			var holds:Int = keyHolds.exists(laneKeys[i]) ? keyHolds.get(laneKeys[i]) : 0;
+			lanes[i].setPressed(holds > 0);
 		}
 
 		// a key must stay down for a couple of frames, otherwise very quick taps could
@@ -215,6 +278,46 @@ class MobileInput extends Sprite {
 				dispatchKey(code, false);
 			}
 		}
+	}
+
+	/**
+	 * Reads the settings from `Options > Mobile Options`.
+	 */
+	function readOptions():Void {
+		try {
+			var visible:Dynamic = Options.getData("hitboxVisible");
+			if (visible != null)
+				hitboxVisible = visible == true;
+
+			var opacity:Dynamic = Options.getData("hitboxOpacity");
+			if (opacity != null)
+				hitboxOpacity = Math.max(0.05, Math.min(0.9, Std.parseFloat(Std.string(opacity)) / 100));
+		} catch (e:Dynamic) {
+			// the options aren't loaded yet, the defaults are fine
+		}
+	}
+
+	/**
+	 * The color of every lane, the same as the arrow of that column.
+	 */
+	function getLaneColors(count:Int):Array<Int> {
+		var colors:Array<Int> = [];
+		var fallback:Array<Int> = [0xC24B99, 0x00FFFF, 0x12FA05, 0xF9393F];
+
+		for (i in 0...count) {
+			var color:Int = fallback[i % fallback.length];
+
+			try {
+				var keyCount:Int = PlayState.SONG.playerKeyCount;
+				var direction:String = NoteVariables.animationDirections[keyCount - 1][i];
+				var rgb:Array<Int> = NoteColors.getNoteColor(direction);
+				color = (Std.int(rgb[0]) << 16) | (Std.int(rgb[1]) << 8) | Std.int(rgb[2]);
+			} catch (e:Dynamic) {}
+
+			colors.push(color);
+		}
+
+		return colors;
 	}
 
 	function getWantedMode():Mode {
@@ -259,6 +362,11 @@ class MobileInput extends Sprite {
 		for (button in buttons)
 			removeChild(button);
 		buttons = [];
+
+		for (lane in lanes)
+			removeChild(lane);
+		lanes = [];
+
 		graphics.clear();
 
 		var stageWidth:Float = Lib.current.stage.stageWidth;
@@ -266,14 +374,15 @@ class MobileInput extends Sprite {
 
 		switch (mode) {
 			case GAME:
-				if (overlayEnabled) {
-					// faint guides so the player can see where every lane is
-					var laneWidth:Float = stageWidth / laneKeys.length;
-					graphics.lineStyle(2, 0xFFFFFF, 0.12);
-					for (i in 1...laneKeys.length) {
-						graphics.moveTo(laneWidth * i, stageHeight * 0.35);
-						graphics.lineTo(laneWidth * i, stageHeight);
-					}
+				// the hitbox: one column per lane over the whole screen, it adapts to any key count and any screen size
+				laneColors = getLaneColors(laneKeys.length);
+
+				var laneWidth:Float = stageWidth / laneKeys.length;
+				for (i in 0...laneKeys.length) {
+					var lane:HitboxLane = new HitboxLane(laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity);
+					lane.visible = hitboxVisible;
+					lanes.push(lane);
+					addChild(lane);
 				}
 
 				var size:Float = Math.min(stageWidth, stageHeight) * 0.11;

@@ -28,7 +28,6 @@ import sys.io.Process;
 import hxgamemode.GamemodeClient;
 #end
 #if mobile
-import mobile.MobileFiles;
 import mobile.MobileInput;
 import mobile.MobileSetupScreen;
 #end
@@ -63,20 +62,16 @@ class Main extends Sprite {
 		super();
 
 		#if mobile
-		// on mobile everything (mods, crash logs, etc.) lives in the app's storage folder
-		MobileFiles.setWorkingDirectory();
-
-		if (MobileFiles.needsSetup()) {
-			// the bundled game files have to be copied there first
-			var setup:MobileSetupScreen = null;
-			setup = new MobileSetupScreen(() -> {
-				removeChild(setup);
-				setupGame();
-			});
-			addChild(setup);
-			setup.start();
-			return;
-		}
+		// on mobile everything (mods, crash logs, etc.) lives in the engine folder, this makes sure it's ready
+		// (asks for storage access and copies the bundled game files if needed) and then starts the game
+		var setup:MobileSetupScreen = null;
+		setup = new MobileSetupScreen(() -> {
+			removeChild(setup);
+			setupGame();
+		});
+		addChild(setup);
+		setup.start();
+		return;
 		#end
 
 		setupGame();

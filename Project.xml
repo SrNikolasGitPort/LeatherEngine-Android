@@ -80,6 +80,18 @@
 	<!-- Android build settings (the lime fork used by this engine targets SDK 35) -->
 	<section if="android">
 		<config:android minimum-sdk-version="28" target-sdk-version="35" />
+
+		<!-- Internet is used by the update checker, the storage permissions let the game use /storage/emulated/0/.Leather1.1.9 -->
+		<config:android permission="android.permission.WAKE_LOCK" />
+		<config:android permission="android.permission.INTERNET" />
+		<config:android permission="android.permission.VIBRATE" />
+		<config:android permission="android.permission.ACCESS_NETWORK_STATE" />
+		<config:android permission="android.permission.READ_EXTERNAL_STORAGE" />
+		<config:android permission="android.permission.WRITE_EXTERNAL_STORAGE" />
+		<config:android permission="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+		<!-- Java helper used to find the storage folders and ask for storage access -->
+		<java path="source/mobile/java" />
 		<!-- 64 bit only: the engine is built with BIT_64 and armv7 would double the build time -->
 		<architecture name="arm64" />
 		<architecture exclude="armv7" />
