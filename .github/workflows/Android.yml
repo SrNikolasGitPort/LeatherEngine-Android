@@ -1,427 +1,196 @@
-name: Build Leather Engine Android
+name: Build Android
+
+permissions:
+  contents: write # needed to publish the release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag of a GitHub release to publish with the APK (leave empty to only build)"
+        required: false
+        default: ""
   push:
+    branches: [main, android-port]
+    paths:
+      - "source/**"
+      - "assets/**"
+      - "mods/**"
+      - "art/**"
+      - "build/**"
+      - "Project.xml"
+      - ".github/workflows/Android.yml"
+  pull_request:
+    branches: [main]
     paths:
       - "source/**"
       - "assets/**"
       - "mods/**"
       - "Project.xml"
-      - ".github/workflows/android.yml"
+      - ".github/workflows/Android.yml"
 
 jobs:
-  build-android:
+  buildAndroid:
     name: Build Leather Engine APK
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
 
     steps:
+      - uses: actions/checkout@v4
 
-      # ========================================
-      # CHECKOUT
-      # ========================================
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # ========================================
-      # JAVA 17
-      # ========================================
-
+      # The lime fork used by this engine needs Gradle 8.9 / Android Gradle Plugin 8.7, which require Java 17.
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Configure Java
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$PATH"
-
-          java -version
-
-      # ========================================
-      # HAXE
-      # ========================================
-
-      - name: Setup Haxe
-        uses: krdlab/setup-haxe@v1
+      - uses: krdlab/setup-haxe@v1
         with:
-          haxe-version: "4.2.5"
+          haxe-version: 4.3.7
 
-      - name: Check Haxe
+      # The runner image already ships the Android SDK, only the pieces lime asks for are added.
+      - name: Install Android SDK / NDK
         run: |
-          haxe --version
-          haxelib version
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.2.12479018"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
-      # ========================================
-      # ANDROID SDK
-      # ========================================
+      # The libraries take a long time to download (lime alone is several GB) so they are cached.
+      - name: Restore the Haxe libraries
+        id: haxelib-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/haxelib
+          key: haxelib-${{ hashFiles('build/install_libraries.sh') }}
 
-      - name: Configure Android SDK
-        run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-
-          sdkmanager --version
-
-      - name: Accept Android Licenses
-        run: |
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-
-          yes | sdkmanager --licenses > /dev/null || true
-
-      - name: Install Android SDK
-        run: |
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-31"
-          sdkmanager "build-tools;31.0.0"
-          sdkmanager "ndk;21.4.7075529"
-
-      # ========================================
-      # ANDROID NDK
-      # ========================================
-
-      - name: Configure Android NDK
-        run: |
-          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
-
-      # ========================================
-      # HAXELIB
-      # ========================================
-
-      - name: Setup Haxelib
+      - name: Install Haxe libraries
+        if: steps.haxelib-cache.outputs.cache-hit != 'true'
         run: |
           haxelib setup ~/haxelib
+          chmod +x ./build/install_libraries.sh
+          ./build/install_libraries.sh
+          haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
 
-      # ========================================
-      # CORE HAXELIBS
-      # ========================================
+      - name: Save the Haxe libraries
+        if: steps.haxelib-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/haxelib
+          key: haxelib-${{ hashFiles('build/install_libraries.sh') }}
 
-      - name: Install Core Haxelibs
+      - name: Show the Haxe libraries
         run: |
-          haxelib install lime
-          haxelib install openfl
-          haxelib install flixel
-          haxelib install flixel-addons
-          haxelib install flixel-ui
-          haxelib install flxanimate
-          haxelib install hxvlc
-          haxelib install grig.audio
-
-      # ========================================
-      # HSCRIPT IMPROVED
-      # ========================================
-
-      - name: Install HScript Improved
-        run: |
-          haxelib git hscript-improved https://github.com/FNF-CNE-Devs/hscript-improved.git
-
-      # ========================================
-      # FUNKIN.VIS
-      # ========================================
-
-      - name: Install funkin.vis
-        run: |
-          haxelib git funkin.vis https://github.com/FunkinCrew/funkVis.git
-
-      # ========================================
-      # HXNOISE
-      # ========================================
-
-      - name: Install hxNoise
-        run: |
-          git clone --depth 1 https://github.com/whuop/hxNoise.git /tmp/hxNoise
-          haxelib dev hxnoise /tmp/hxNoise
-
-      # ========================================
-      # LUAJIT
-      # ========================================
-
-      - name: Install LuaJIT
-        run: |
-          haxelib git linc_luajit https://github.com/nebulazorua/linc_luajit.git
-
-      # ========================================
-      # MODCHARTING TOOLS
-      # ========================================
-
-      - name: Install Modcharting Tools
-        run: |
-          haxelib git fnf-modcharting-tools https://github.com/TheZoroForce240/FNF-Modcharting-Tools.git
-
-      # ========================================
-      # PREPARE PROJECT FOR ANDROID
-      # ========================================
-
-      - name: Prepare Android Project
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          project = Path("Project.xml")
-
-          text = project.read_text()
-
-          # ----------------------------------------
-          # DISCORD DESKTOP ONLY
-          # ----------------------------------------
-
-          text = re.sub(
-              r'<define\s+name=["\']DISCORD_ALLOWED["\'][^>]*/>',
-              '<define name="DISCORD_ALLOWED" if="desktop" />',
-              text
-          )
-
-          # ----------------------------------------
-          # LUA DESKTOP ONLY
-          # ----------------------------------------
-
-          text = re.sub(
-              r'<define\s+name=["\']LUA_ALLOWED["\'][^>]*/>',
-              '<define name="LUA_ALLOWED" if="desktop" />',
-              text
-          )
-
-          # ----------------------------------------
-          # MODDING DESKTOP ONLY
-          # ----------------------------------------
-
-          text = re.sub(
-              r'<define\s+name=["\']MODDING_ALLOWED["\'][^>]*/>',
-              '<define name="MODDING_ALLOWED" if="desktop" />',
-              text
-          )
-
-          # ----------------------------------------
-          # REMOVE EVERY SCRIPTLESS-POLYMOD XML LINE
-          # ----------------------------------------
-
-          lines = text.splitlines()
-
-          lines = [
-              line
-              for line in lines
-              if "scriptless-polymod" not in line.lower()
-          ]
-
-          project.write_text("\n".join(lines) + "\n")
-          PY
-
-          echo "========================================"
-          echo "ANDROID PROJECT PREPARED"
-          echo "========================================"
-
-          echo ""
-          echo "MODDING:"
-          grep -n "MODDING_ALLOWED" Project.xml || true
-
-          echo ""
-          echo "SCRIPTLESS POLYMOD:"
-          if grep -in "scriptless-polymod" Project.xml; then
-            echo "ERROR: scriptless-polymod STILL EXISTS"
-            exit 1
-          else
-            echo "OK: scriptless-polymod completely removed"
-          fi
-
-          echo ""
-          echo "DISCORD:"
-          grep -n "DISCORD_ALLOWED" Project.xml || true
-
-          echo ""
-          echo "LUA:"
-          grep -n "LUA_ALLOWED" Project.xml || true
-
-      # ========================================
-      # VERIFY NO BACKUP PROJECT EXISTS
-      # ========================================
-
-      - name: Verify Project Files
-        run: |
-          echo "Project files found:"
-          find . -maxdepth 2 -name "Project*.xml" -print
-
-          echo ""
-          echo "Searching entire repository for scriptless-polymod:"
-
-          if grep -Rni \
-            --exclude-dir=.git \
-            --exclude-dir=.haxelib \
-            "scriptless-polymod" .; then
-
-            echo ""
-            echo "ERROR: scriptless-polymod still exists somewhere in the project."
-            exit 1
-
-          else
-            echo "OK: no scriptless-polymod reference found."
-          fi
-
-      # ========================================
-      # CHECK ANDROID CONFIGURATION
-      # ========================================
-
-      - name: Check Android Configuration
-        run: |
-          echo "========================================"
-          echo "ANDROID CONFIGURATION"
-          echo "========================================"
-
-          grep -n "MODDING_ALLOWED" Project.xml || true
-          grep -n "DISCORD_ALLOWED" Project.xml || true
-          grep -n "LUA_ALLOWED" Project.xml || true
-
-          echo ""
-          echo "Project.xml:"
-          test -f Project.xml
-          echo "Project.xml OK."
-
-      # ========================================
-      # LIME SETUP
-      # ========================================
-
-      - name: Setup Lime
-        run: |
-          haxelib run lime setup
-          haxelib run lime setup flixel
-
-      # ========================================
-      # CONFIGURE LIME
-      # ========================================
-
-      - name: Configure Lime
-        run: |
-          haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
-          haxelib run lime config ANDROID_NDK "$ANDROID_NDK_ROOT"
-          haxelib run lime config JAVA_HOME "$JAVA_HOME_17_X64"
-
-      # ========================================
-      # VERIFY ENVIRONMENT
-      # ========================================
-
-      - name: Verify Environment
-        run: |
-          echo "========================================"
-          echo "JAVA"
-          echo "========================================"
-
-          java -version
-
-          echo "========================================"
-          echo "HAXE"
-          echo "========================================"
-
-          haxe --version
-
-          echo "========================================"
-          echo "HAXELIBS"
-          echo "========================================"
-
+          haxelib setup ~/haxelib
           haxelib list
 
-          echo "========================================"
-          echo "LIME"
-          echo "========================================"
-
-          haxelib list | grep -E "^lime:"
-
-          echo "========================================"
-          echo "ANDROID SDK"
-          echo "========================================"
-
-          sdkmanager --version
-
-          echo "========================================"
-          echo "ANDROID NDK"
-          echo "========================================"
-
-          test -d "$ANDROID_NDK_ROOT"
-          echo "$ANDROID_NDK_ROOT"
-
-          echo "========================================"
-          echo "PROJECT"
-          echo "========================================"
-
-          test -f Project.xml
-
-          echo "Project.xml found."
-
-          echo "========================================"
-          echo "FINAL SCRIPTLESS CHECK"
-          echo "========================================"
-
-          if grep -Rni \
-            --exclude-dir=.git \
-            --exclude-dir=.haxelib \
-            "scriptless-polymod" .; then
-
-            echo "ERROR: scriptless-polymod reference detected."
-            exit 1
-
-          else
-            echo "OK: scriptless-polymod is completely absent."
-          fi
-
-          echo "========================================"
-          echo "ENVIRONMENT OK"
-          echo "========================================"
-
-      # ========================================
-      # BUILD APK
-      # ========================================
-
-      - name: Build Android APK
+      # hxcpp is installed from git too, so its command line tool has to be compiled first.
+      - name: Build the hxcpp command line tool
         run: |
-          export JAVA_HOME="$JAVA_HOME_17_X64"
-          export PATH="$JAVA_HOME/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+          cd "$(haxelib libpath hxcpp)/tools/hxcpp"
+          haxe compile.hxml
 
-          echo "========================================"
-          echo "BUILDING LEATHER ENGINE ANDROID"
-          echo "========================================"
-
-          haxelib run lime build android -release
-
-      # ========================================
-      # FIND APK
-      # ========================================
-
-      - name: Find APK
+      # The Linux ndll that is committed in the lime fork (March 2026) was built against glibc 2.43 and refuses to load on
+      # GitHub runners (every lime command crashes with "GLIBC_2.43 not found"). The June 2025 one needs glibc 2.38 and loads
+      # fine on ubuntu-24.04. It is only used by lime's command line tool, the Android libraries are not affected.
+      - name: Use a lime host library that runs on this runner
         run: |
-          echo "========================================"
-          echo "SEARCHING FOR APK"
-          echo "========================================"
+          cd "$(haxelib libpath lime)"
+          git show 295d9458:ndll/Linux64/lime.ndll > /tmp/lime.ndll || {
+            git fetch --depth=1 origin 295d9458
+            git show 295d9458:ndll/Linux64/lime.ndll > /tmp/lime.ndll
+          }
+          cp /tmp/lime.ndll ndll/Linux64/lime.ndll
+          strings ndll/Linux64/lime.ndll | grep -o "GLIBC_2\.[0-9]*" | sort -uV | tail -1
+          ldd --version | head -1
 
-          find . -type f \( \
-            -name "*.apk" \
-            -o -name "*.aab" \
-          \) -print
+      # lime is installed from git, so its command line tool has to be compiled before it can be used.
+      - name: Build the lime command line tool
+        run: |
+          cd "$(haxelib libpath lime)/tools"
+          haxe run.hxml
 
-      # ========================================
-      # UPLOAD APK
-      # ========================================
+      # Tells lime where the Android tools are, this replaces the interactive `lime setup android`.
+      - name: Configure lime for Android
+        run: |
+          haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
+          haxelib run lime config ANDROID_NDK_ROOT "$ANDROID_NDK_ROOT"
+          haxelib run lime config JAVA_HOME "$JAVA_HOME"
+          haxelib run lime config ANDROID_SETUP true
+
+      # Release APKs have to be signed to be installable. This is a throw-away key made for the build,
+      # so a fresh APK can't be installed over one built by another run (uninstall the old one first).
+      # To keep updating in place, store your own keystore in the repository secrets and use it here instead.
+      - name: Create a signing key
+        run: |
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/leather.keystore" -alias leather \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass leatherengine -keypass leatherengine \
+            -dname "CN=Leather Engine, O=Leather Engine, C=US"
+
+      - name: Build APK
+        run: |
+          set -o pipefail
+          haxelib run lime build Project.xml android -release -arm64 \
+            -certificate-path="$RUNNER_TEMP/leather.keystore" \
+            -certificate-password=leatherengine \
+            -certificate-alias=leather \
+            -certificate-alias-password=leatherengine 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      # Shows the end of the build log as an error message on the run, handy when the full log is hard to reach.
+      - name: Show the end of the build log
+        if: failure()
+        run: |
+          log=$(grep -aiE "error|failed|exception|not found|cannot|undefined" "$RUNNER_TEMP/build.log" | grep -av "^\s*$" | tail -n 25 | sed 's/\x1b\[[0-9;]*m//g')
+          tail=$(tail -n 25 "$RUNNER_TEMP/build.log" | sed 's/\x1b\[[0-9;]*m//g')
+          echo "::error title=Build errors::${log//$'\n'/%0A}"
+          echo "::error title=Build log tail::${tail//$'\n'/%0A}"
+
+      - name: Find the APK
+        run: find export -name "*.apk" -o -name "*.aab"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LeatherEngine-Android
-          path: |
-            export/**/*.apk
-            export/**/*.aab
+          path: export/**/outputs/apk/**/*.apk
           if-no-files-found: error
+
+      - name: Publish the release
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          apk="LeatherEngine-Android-$TAG.apk"
+          cp "$(find export -name '*.apk' | head -1)" "$apk"
+
+          cat > release_notes.md <<'NOTES'
+          Leather Engine 1.1.9 para Android (arm64, Android 9 ou mais novo).
+
+          **Como instalar**
+          1. Baixe o `.apk` abaixo e instale (permita "instalar apps desconhecidos" se o Android pedir).
+          2. Na primeira abertura, permita o acesso aos arquivos. A engine cria a pasta `.Leather1.1.9` no armazenamento interno e copia os arquivos do jogo (cerca de 340 MB, só demora na primeira vez).
+          3. Coloque seus mods em `.Leather1.1.9/mods/`.
+
+          **O que tem**
+          - Controles de toque: D-pad e botões A/B nos menus, hitbox por lane nas músicas (cores das setas, funciona com qualquer quantidade de teclas).
+          - Options > Mobile Options: hitbox visível e opacidade, fullscreen e pasta da engine (EXTERNAL, DATA, MEDIA, OBB).
+          - Mods com HScript.
+
+          **Limitações**
+          - Lua, vídeos de cutscene e Discord RPC não estão disponíveis no Android.
+          - Versão de teste: pode ter bugs. Se o app fechar, o log fica em `.Leather1.1.9/crash/`.
+          - A chave de assinatura é gerada a cada build. Para instalar uma versão nova, desinstale a anterior antes.
+          NOTES
+          sed -i 's/^          //' release_notes.md
+
+          gh release create "$TAG" "$apk" \
+            --target "$GITHUB_SHA" \
+            --title "Leather Engine Android $TAG" \
+            --notes-file release_notes.md \
+            --prerelease

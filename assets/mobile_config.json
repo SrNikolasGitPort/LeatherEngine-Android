@@ -1,6 +1,5 @@
 {
-  "columns": 4,
   "overlayEnabled": true,
-  "menuSwipeEnabled": true,
-  "gameplayBottomRatio": 0.55
+  "buttonAlpha": 0.35,
+  "slideLanes": false
 }

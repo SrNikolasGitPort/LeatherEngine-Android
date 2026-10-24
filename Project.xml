@@ -18,10 +18,13 @@
 	<!-- LEATHER ENGINE CUSTOMIZATION -->
 	<!-- Comment out or delete a line to disable a feature. -->
 
-	<!-- For Android we disable features that are desktop-only to reduce porting issues -->
+	<!--
+	Features that rely on desktop-only native libraries are limited to desktop targets.
+	Mods (Polymod + HScript) work on every target, including Android.
+	-->
 	<define name="VIDEOS_ALLOWED" if="desktop" /> <!--  Allows support for video files -->
 	<define name="DISCORD_ALLOWED" if="desktop" /> <!--  Allows support for Discord Rich Presence -->
-	<define name="MODDING_ALLOWED" if="desktop" /> <!-- Allows mod loading -->
+	<define name="MODDING_ALLOWED" /> <!-- Allows mod loading -->
 
 	<define name="MODCHARTING_TOOLS" /> <!--  Allows for Modcharting Tools to be used. -->
 
@@ -74,12 +77,34 @@
 	<!-- Android-specific window defaults -->
 	<window if="android" orientation="landscape" fullscreen="true" resizable="false" vsync="false" />
 
+	<!-- Android build settings (the lime fork used by this engine targets SDK 35) -->
+	<section if="android">
+		<config:android minimum-sdk-version="28" target-sdk-version="35" />
+
+		<!-- Internet is used by the update checker, the storage permissions let the game use /storage/emulated/0/.Leather1.1.9 -->
+		<config:android permission="android.permission.WAKE_LOCK" />
+		<config:android permission="android.permission.INTERNET" />
+		<config:android permission="android.permission.VIBRATE" />
+		<config:android permission="android.permission.ACCESS_NETWORK_STATE" />
+		<config:android permission="android.permission.READ_EXTERNAL_STORAGE" />
+		<config:android permission="android.permission.WRITE_EXTERNAL_STORAGE" />
+		<config:android permission="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+		<!-- Java helper used to find the storage folders and ask for storage access -->
+		<java path="source/mobile/java" />
+		<!-- 64 bit only: the engine is built with BIT_64 and armv7 would double the build time -->
+		<architecture name="arm64" />
+		<architecture exclude="armv7" />
+	</section>
+
 	<!-- Path Settings. -->
 
 	<assets path="assets/preload" rename="assets" />
 
 	<section if="MODDING_ALLOWED">
-		<assets path="mods" embed="false" />
+		<!-- On Android the videos are left out (video playback is desktop only) to keep the APK smaller. -->
+		<assets path="mods" embed="false" unless="android" />
+		<assets path="mods" embed="false" exclude="*.mp4" if="android" />
 	</section>
 
 	<!-- Library settings -->
@@ -118,6 +143,9 @@
 	<assets path="crash/bin/Crash-linux.x86_64" if="linux" rename="Crash.x86_64" />
 
 	<assets path="build/linux_dependencies.txt" rename='linux_dependencies.txt' if="linux" />
+
+	<!-- Touch controls configuration (mobile only) -->
+	<assets path="assets/mobile_config.json" rename="mobile_config.json" if="mobile" />
 
 
 	<!-- Export Settings. -->
