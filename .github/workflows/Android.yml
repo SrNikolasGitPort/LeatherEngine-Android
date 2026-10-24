@@ -1,7 +1,15 @@
 name: Build Android
 
+permissions:
+  contents: write # needed to publish the release
+
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag of a GitHub release to publish with the APK (leave empty to only build)"
+        required: false
+        default: ""
   push:
     branches: [main, android-port]
     paths:
@@ -151,3 +159,38 @@ jobs:
           name: LeatherEngine-Android
           path: export/**/outputs/apk/**/*.apk
           if-no-files-found: error
+
+      - name: Publish the release
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          apk="LeatherEngine-Android-$TAG.apk"
+          cp "$(find export -name '*.apk' | head -1)" "$apk"
+
+          cat > release_notes.md <<'NOTES'
+          Leather Engine 1.1.9 para Android (arm64, Android 9 ou mais novo).
+
+          **Como instalar**
+          1. Baixe o `.apk` abaixo e instale (permita "instalar apps desconhecidos" se o Android pedir).
+          2. Na primeira abertura, permita o acesso aos arquivos. A engine cria a pasta `.Leather1.1.9` no armazenamento interno e copia os arquivos do jogo (cerca de 340 MB, só demora na primeira vez).
+          3. Coloque seus mods em `.Leather1.1.9/mods/`.
+
+          **O que tem**
+          - Controles de toque: D-pad e botões A/B nos menus, hitbox por lane nas músicas (cores das setas, funciona com qualquer quantidade de teclas).
+          - Options > Mobile Options: hitbox visível e opacidade, fullscreen e pasta da engine (EXTERNAL, DATA, MEDIA, OBB).
+          - Mods com HScript.
+
+          **Limitações**
+          - Lua, vídeos de cutscene e Discord RPC não estão disponíveis no Android.
+          - Versão de teste: pode ter bugs. Se o app fechar, o log fica em `.Leather1.1.9/crash/`.
+          - A chave de assinatura é gerada a cada build. Para instalar uma versão nova, desinstale a anterior antes.
+          NOTES
+          sed -i 's/^          //' release_notes.md
+
+          gh release create "$TAG" "$apk" \
+            --target "$GITHUB_SHA" \
+            --title "Leather Engine Android $TAG" \
+            --notes-file release_notes.md \
+            --prerelease
