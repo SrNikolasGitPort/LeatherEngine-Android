@@ -100,11 +100,21 @@ jobs:
 
       - name: Build APK
         run: |
+          set -o pipefail
           haxelib run lime build Project.xml android -release -arm64 \
             -certificate-path="$RUNNER_TEMP/leather.keystore" \
             -certificate-password=leatherengine \
             -certificate-alias=leather \
-            -certificate-alias-password=leatherengine
+            -certificate-alias-password=leatherengine 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      # Shows the end of the build log as an error message on the run, handy when the full log is hard to reach.
+      - name: Show the end of the build log
+        if: failure()
+        run: |
+          log=$(grep -aiE "error|failed|exception|not found|cannot|undefined" "$RUNNER_TEMP/build.log" | grep -av "^\s*$" | tail -n 25 | sed 's/\x1b\[[0-9;]*m//g')
+          tail=$(tail -n 25 "$RUNNER_TEMP/build.log" | sed 's/\x1b\[[0-9;]*m//g')
+          echo "::error title=Build errors::${log//$'\n'/%0A}"
+          echo "::error title=Build log tail::${tail//$'\n'/%0A}"
 
       - name: Find the APK
         run: find export -name "*.apk" -o -name "*.aab"
