@@ -141,6 +141,7 @@ class Main extends Sprite {
 		addChild(display);
 
 		#if mobile
+		mobile.MobileSettings.initialize();
 		MobileInput.initialize();
 		#end
 

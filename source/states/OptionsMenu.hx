@@ -36,7 +36,8 @@ class OptionsMenu extends MusicBeatState {
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new BoolOption("Hitbox Visible", "hitboxVisible", "When not toggled, the colored lanes you tap\nduring songs are hidden but still work."),
 			new StepperSaveOption("Hitbox Opacity", 5, 80, "hitboxOpacity", 5, "How visible the colored lanes are.\nUse left and right to change it. (in %)"),
-			new BoolOption("Fullscreen", "mobileFullscreen", "Hides the system bars (status and navigation bar)."),
+			new BoolOption("Fullscreen", "mobileFullscreen",
+				"On: the game fills the whole screen, without the black bars on the sides.\nOff: normal screen, keeps the original proportions."),
 			new StorageLocationOption("Storage", mobile.MobileFiles.STORAGE_MODES, "storageLocation",
 				"Where the engine folder with the mods is.\nEXTERNAL: .Leather1.1.9 | DATA: Android/data | MEDIA: Android/media | OBB: Android/obb\nRestart the game to apply it.")
 		],

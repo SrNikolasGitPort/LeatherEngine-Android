@@ -213,7 +213,7 @@
 	<!-- HXCPP Defines -->
 	<!-- Aways enable Null Object Reference check for crash dialog -->
 	<define name="HXCPP_CHECK_POINTER" if="release" />
-	<define name="HXCPP_STACK_LINE" if="release" />
+	<define name="HXCPP_STACK_LINE" if="release desktop" /> <!-- line tracking slows the game down a lot, so phones go without -->
 	<define name="HXCPP_STACK_TRACE" if="release" />
 	<!-- <define name="HXCPP_GC_GENERATIONAL" /> -->
 

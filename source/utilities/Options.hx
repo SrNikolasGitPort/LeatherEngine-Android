@@ -51,6 +51,10 @@ class Options {
 				setData(option.value, option.option, saveKey);
 		}
 
+		#if mobile
+		applyMobileDefaults();
+		#end
+
 		Conductor.offset = getData("songOffset");
 
 		if (getData("modlist", "modlist") == null)
@@ -85,6 +89,28 @@ class Options {
 				}
 			}
 		}
+	}
+	#end
+
+	#if mobile
+	/**
+	 * Phones don't have the power of a desktop, so the first time the game opens it starts with settings that run well on them.
+	 * Everything can still be changed in the options menu afterwards.
+	 */
+	static function applyMobileDefaults() {
+		if (getData("mobileTuned") == true)
+			return;
+
+		setData(60, "maxFPS"); // 120 fps makes most phones run hot for no real gain
+		setData(true, "optimizedChars"); // smaller character spritesheets
+		setData(true, "vramSprites"); // keep sprites in the GPU so they don't use the RAM
+		setData(false, "animatedBGs"); // static stage sprites when possible
+		setData(false, "preloadChangeBGs"); // don't preload every stage change at once
+		setData(false, "memoryLeaks"); // clear the cache between states
+		setData(true, "loadAsynchronously");
+		setData(false, "showTracedLines");
+		setData(false, "checkForUpdates");
+		setData(true, "mobileTuned");
 	}
 	#end
 
