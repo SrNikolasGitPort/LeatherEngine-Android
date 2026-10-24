@@ -52,13 +52,39 @@ jobs:
             "ndk;27.2.12479018"
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
+      # The libraries take a long time to download (lime alone is several GB) so they are cached.
+      - name: Restore the Haxe libraries
+        id: haxelib-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/haxelib
+          key: haxelib-${{ hashFiles('build/install_libraries.sh') }}
+
       - name: Install Haxe libraries
+        if: steps.haxelib-cache.outputs.cache-hit != 'true'
         run: |
           haxelib setup ~/haxelib
           chmod +x ./build/install_libraries.sh
           ./build/install_libraries.sh
           haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
+
+      - name: Save the Haxe libraries
+        if: steps.haxelib-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/haxelib
+          key: haxelib-${{ hashFiles('build/install_libraries.sh') }}
+
+      - name: Show the Haxe libraries
+        run: |
+          haxelib setup ~/haxelib
           haxelib list
+
+      # hxcpp is installed from git too, so its command line tool has to be compiled first.
+      - name: Build the hxcpp command line tool
+        run: |
+          cd "$(haxelib libpath hxcpp)/tools/hxcpp"
+          haxe compile.hxml
 
       # The Linux ndll that is committed in the lime fork (March 2026) was built against glibc 2.43 and refuses to load on
       # GitHub runners (every lime command crashes with "GLIBC_2.43 not found"). The June 2025 one needs glibc 2.38 and loads
