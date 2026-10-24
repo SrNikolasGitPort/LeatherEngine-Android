@@ -24,7 +24,7 @@ on:
 jobs:
   buildAndroid:
     name: Build Leather Engine APK
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
@@ -59,6 +59,20 @@ jobs:
           ./build/install_libraries.sh
           haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
           haxelib list
+
+      # The Linux ndll that is committed in the lime fork (March 2026) was built against glibc 2.43 and refuses to load on
+      # GitHub runners (every lime command crashes with "GLIBC_2.43 not found"). The June 2025 one needs glibc 2.38 and loads
+      # fine on ubuntu-24.04. It is only used by lime's command line tool, the Android libraries are not affected.
+      - name: Use a lime host library that runs on this runner
+        run: |
+          cd "$(haxelib libpath lime)"
+          git show 295d9458:ndll/Linux64/lime.ndll > /tmp/lime.ndll || {
+            git fetch --depth=1 origin 295d9458
+            git show 295d9458:ndll/Linux64/lime.ndll > /tmp/lime.ndll
+          }
+          cp /tmp/lime.ndll ndll/Linux64/lime.ndll
+          strings ndll/Linux64/lime.ndll | grep -o "GLIBC_2\.[0-9]*" | sort -uV | tail -1
+          ldd --version | head -1
 
       # lime is installed from git, so its command line tool has to be compiled before it can be used.
       - name: Build the lime command line tool
