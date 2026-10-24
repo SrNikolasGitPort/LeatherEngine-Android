@@ -98,7 +98,7 @@ class Options {
 	 * Everything can still be changed in the options menu afterwards.
 	 */
 	static function applyMobileDefaults() {
-		if (getData("mobileTuned") == true)
+		if (getData("mobileTunedV2") == true)
 			return;
 
 		setData(60, "maxFPS"); // 120 fps makes most phones run hot for no real gain
@@ -107,10 +107,10 @@ class Options {
 		setData(false, "animatedBGs"); // static stage sprites when possible
 		setData(false, "preloadChangeBGs"); // don't preload every stage change at once
 		setData(false, "memoryLeaks"); // clear the cache between states
-		setData(true, "loadAsynchronously");
+		setData(false, "loadAsynchronously"); // loading from other threads crashes on Android
 		setData(false, "showTracedLines");
 		setData(false, "checkForUpdates");
-		setData(true, "mobileTuned");
+		setData(true, "mobileTunedV2");
 	}
 	#end
 
