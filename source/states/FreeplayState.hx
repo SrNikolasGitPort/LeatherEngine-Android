@@ -527,6 +527,10 @@ class FreeplayState extends MusicBeatState {
 		PlayState.loadChartEvents = true;
 		PlayState.chartingMode = false;
 		destroyFreeplayVocals();
+		#if mobile
+		// the buttons would stay on screen until the song is loaded
+		mobile.MobileInput.hideUntilNextState();
+		#end
 		FlxG.switchState(() -> new PlayState());
 	}
 

@@ -13,8 +13,12 @@ class FlashingLightsMenu extends MusicBeatState {
 	override public function create() {
 		super.create();
 
+		#if mobile
+		text = new FlxText(0, 0, 0, 'This game has flashing lights!\nTap Y to enable them, or N to disable them.\n(Either button takes you to the title screen.)', 32);
+		#else
 		text = new FlxText(0, 0, 0, 'This game has flashing lights!\nPress Y to enable them, or N to disable them.\n(Either key closes takes you to the title screen.)',
 			32);
+		#end
 		text.font = Paths.font('vcr.ttf');
 		text.screenCenter();
 		text.alignment = CENTER;

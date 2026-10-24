@@ -8,6 +8,11 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.Settings;
+import android.graphics.Rect;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import java.util.Collections;
 import java.io.File;
 import org.libsdl.app.SDLActivity;
 
@@ -102,5 +107,64 @@ public class MobileStorage {
 				}
 			}
 		});
+	}
+
+	private static final int IMMERSIVE_FLAGS = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+			| View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN
+			| View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+
+	private static boolean immersiveListenerSet = false;
+
+	/**
+	 * Hides the status / navigation bars for good (they stay hidden when the screen is touched near the edges), makes the game
+	 * draw behind the camera cutout and stops the system back / home gestures from stealing touches on the left and right edge
+	 * (that is what made the first and last lanes of the hitbox fail).
+	 */
+	public static void enableImmersive() {
+		try {
+			final Activity activity = (Activity) context();
+			activity.runOnUiThread(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						Window window = activity.getWindow();
+						final View decor = window.getDecorView();
+
+						if (Build.VERSION.SDK_INT >= 28) {
+							WindowManager.LayoutParams params = window.getAttributes();
+							params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+							window.setAttributes(params);
+						}
+
+						decor.setSystemUiVisibility(IMMERSIVE_FLAGS);
+
+						if (!immersiveListenerSet) {
+							immersiveListenerSet = true;
+
+							// whenever the system shows the bars again (a swipe from the edge) hide them again
+							decor.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
+								@Override
+								public void onSystemUiVisibilityChange(int visibility) {
+									if ((visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0)
+										decor.setSystemUiVisibility(IMMERSIVE_FLAGS);
+								}
+							});
+
+							if (Build.VERSION.SDK_INT >= 29) {
+								decor.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+									@Override
+									public void onLayoutChange(View v, int l, int t, int r, int b, int ol, int ot, int or, int ob) {
+										// the whole screen is excluded from the system gestures (the limit is 200dp per edge, the system trims it)
+										v.setSystemGestureExclusionRects(Collections.singletonList(new Rect(0, 0, r - l, b - t)));
+									}
+								});
+							}
+						}
+					} catch (Throwable e) {
+					}
+				}
+			});
+		} catch (Throwable e) {
+		}
 	}
 }

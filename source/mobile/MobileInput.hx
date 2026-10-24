@@ -18,6 +18,10 @@ import openfl.ui.Keyboard;
 import openfl.ui.Multitouch;
 import openfl.ui.MultitouchInputMode;
 import shaders.NoteColors;
+import states.FlashingLightsMenu;
+import states.FreeplayState;
+import states.LoadingState;
+import states.MainMenuState;
 import states.PlayState;
 import states.TitleState;
 import utilities.NoteVariables;
@@ -35,6 +39,16 @@ private enum Mode {
 	 * Playing a song: the whole screen is split into one lane per note column.
 	 */
 	GAME;
+
+	/**
+	 * The flashing lights question: only big Y and N buttons.
+	 */
+	PROMPT;
+
+	/**
+	 * Nothing on screen (title screen, loading screens, after a song was picked).
+	 */
+	HIDDEN;
 }
 
 /**
@@ -157,7 +171,7 @@ private class HitboxLane extends Sprite {
  * {
  *   "overlayEnabled": true,   // show the buttons / lane guides
  *   "buttonAlpha": 0.35,      // how visible the buttons are
- *   "slideLanes": false       // let a finger slide from one lane to another while holding
+ *   "slideLanes": true        // let a finger slide from one lane to another while holding
  * }
  * ```
  */
@@ -170,7 +184,20 @@ class MobileInput extends Sprite {
 
 	var overlayEnabled:Bool = true;
 	var buttonAlpha:Float = 0.35;
-	var slideLanes:Bool = false;
+	var slideLanes:Bool = true;
+
+	/**
+	 * Set when a song / week was picked: the buttons go away until the next state is ready.
+	 */
+	static var hideFlag:Bool = false;
+
+	/**
+	 * Fingers that are holding the "C" (speed) button, and where they started.
+	 */
+	var speedTouches:Map<Int, Float> = new Map();
+
+	var speedSteps:Int = 0;
+	var nextTapFrame:Int = 0;
 
 	var buttons:Array<VirtualButton> = [];
 	var lanes:Array<HitboxLane> = [];
@@ -198,6 +225,15 @@ class MobileInput extends Sprite {
 	var keyPressFrame:Map<Int, Int> = new Map();
 	var pendingReleases:Array<Int> = [];
 
+	/**
+	 * Hides the buttons until the next state is on screen (the lanes show up again once the song starts).
+	 */
+	public static function hideUntilNextState():Void {
+		hideFlag = true;
+		if (instance != null)
+			instance.releaseEverything();
+	}
+
 	public static function initialize():Void {
 		if (instance != null || Lib.current == null || Lib.current.stage == null)
 			return;
@@ -213,6 +249,8 @@ class MobileInput extends Sprite {
 		stage.addEventListener(TouchEvent.TOUCH_END, instance.onTouchEnd);
 		stage.addEventListener(Event.ENTER_FRAME, instance.onFrame);
 		stage.addEventListener(Event.DEACTIVATE, instance.onDeactivate);
+
+		FlxG.signals.postStateSwitch.add(() -> hideFlag = false);
 	}
 
 	function new() {
@@ -251,8 +289,8 @@ class MobileInput extends Sprite {
 		if (newMode == GAME) {
 			laneKeys = getLaneKeys();
 			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity';
-		} else if (FlxG.state is TitleState) {
-			newKey += ":title";
+		} else if (newMode == MENU) {
+			newKey += ':${FlxG.state is MainMenuState}:${FlxG.state is FreeplayState}';
 		}
 
 		if (newKey != layoutKey) {
@@ -260,6 +298,15 @@ class MobileInput extends Sprite {
 			mode = newMode;
 			layoutKey = newKey;
 			buildLayout();
+		}
+
+		// every step of a slide on the "C" button taps LEFT / RIGHT (with SHIFT held that changes the speed)
+		if (speedSteps != 0 && frame >= nextTapFrame) {
+			var key:Int = speedSteps > 0 ? Keyboard.RIGHT : Keyboard.LEFT;
+			speedSteps += speedSteps > 0 ? -1 : 1;
+			pressKey(key);
+			releaseKey(key);
+			nextTapFrame = frame + 4;
 		}
 
 		// light up the lanes that are being held
@@ -322,8 +369,16 @@ class MobileInput extends Sprite {
 
 	function getWantedMode():Mode {
 		var state = FlxG.state;
-		if (state is PlayState && state.subState == null)
-			return GAME;
+
+		if (state is PlayState)
+			return state.subState == null ? GAME : MENU;
+
+		if (hideFlag || state is TitleState || state is LoadingState)
+			return HIDDEN;
+
+		if (state is FlashingLightsMenu)
+			return cast(state, FlashingLightsMenu).canInput ? PROMPT : HIDDEN;
+
 		return MENU;
 	}
 
@@ -373,6 +428,16 @@ class MobileInput extends Sprite {
 		var stageHeight:Float = Lib.current.stage.stageHeight;
 
 		switch (mode) {
+			case HIDDEN:
+			case PROMPT:
+				{
+					var size:Float = Math.min(stageWidth, stageHeight) * 0.26;
+					var gap:Float = size * 0.5;
+					var left:Float = (stageWidth - size * 2 - gap) / 2;
+					var top:Float = stageHeight - size * 1.5;
+					addButton(Keyboard.Y, "Y", left, top, size);
+					addButton(Keyboard.N, "N", left + size + gap, top, size);
+				}
 			case GAME:
 				// the hitbox: one column per lane over the whole screen, it adapts to any key count and any screen size
 				laneColors = getLaneColors(laneKeys.length);
@@ -406,10 +471,14 @@ class MobileInput extends Sprite {
 					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - bigSize * 2.2, stageHeight - margin - bigSize, bigSize);
 
 					#if MODDING_ALLOWED
-					// the mod switcher lives on TAB in the title screen
-					if (FlxG.state is TitleState)
+					// the mod switcher lives on TAB
+					if (FlxG.state is MainMenuState || FlxG.state is FreeplayState)
 						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
 					#end
+
+					// hold C (SHIFT) and slide left / right to change the song speed
+					if (FlxG.state is FreeplayState)
+						addButton(Keyboard.SHIFT, "C", stageWidth - margin - bigSize * 3.4, stageHeight - margin - bigSize, bigSize);
 				}
 		}
 	}
@@ -444,6 +513,8 @@ class MobileInput extends Sprite {
 		var button:Null<VirtualButton> = getButtonAt(event.stageX, event.stageY);
 		if (button != null) {
 			touchButtons.set(id, button);
+			if (button.keyCode == Keyboard.SHIFT)
+				speedTouches.set(id, event.stageX);
 			button.setPressed(true);
 			pressKey(button.keyCode);
 			return;
@@ -457,10 +528,22 @@ class MobileInput extends Sprite {
 	}
 
 	function onTouchMove(event:TouchEvent):Void {
+		var id:Int = event.touchPointID;
+
+		if (speedTouches.exists(id)) {
+			var step:Float = Lib.current.stage.stageWidth * 0.03;
+			var moved:Float = event.stageX - speedTouches.get(id);
+			var steps:Int = Std.int(moved / step);
+			if (steps != 0) {
+				speedTouches.set(id, speedTouches.get(id) + steps * step);
+				speedSteps += steps;
+			}
+			return;
+		}
+
 		if (mode != GAME || !slideLanes)
 			return;
 
-		var id:Int = event.touchPointID;
 		if (!touchLanes.exists(id))
 			return;
 
@@ -476,6 +559,8 @@ class MobileInput extends Sprite {
 
 	function onTouchEnd(event:TouchEvent):Void {
 		var id:Int = event.touchPointID;
+
+		speedTouches.remove(id);
 
 		if (touchButtons.exists(id)) {
 			var button:VirtualButton = touchButtons.get(id);
@@ -503,6 +588,8 @@ class MobileInput extends Sprite {
 
 		touchButtons.clear();
 		touchLanes.clear();
+		speedTouches.clear();
+		speedSteps = 0;
 
 		for (code in pendingReleases)
 			dispatchKey(code, false);

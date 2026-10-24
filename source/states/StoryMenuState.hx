@@ -311,6 +311,10 @@ class StoryMenuState extends MusicBeatState {
 			PlayState.isStoryMode = true;
 			selectedWeek = true;
 
+			#if mobile
+			mobile.MobileInput.hideUntilNextState();
+			#end
+
 			PlayState.SONG = SongLoader.loadFromJson(dif, song_name);
 			PlayState.storyWeek = curWeek;
 			PlayState.storyDifficultyStr = dif.toUpperCase();
