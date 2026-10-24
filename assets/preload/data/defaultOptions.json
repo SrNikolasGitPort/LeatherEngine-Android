@@ -10,7 +10,7 @@
 		},
 		{
 			"option": "mobileFullscreen",
-			"value": true
+			"value": false
 		},
 		{
 			"option": "storageLocation",

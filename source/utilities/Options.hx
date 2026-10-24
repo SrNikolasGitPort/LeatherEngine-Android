@@ -98,7 +98,7 @@ class Options {
 	 * Everything can still be changed in the options menu afterwards.
 	 */
 	static function applyMobileDefaults() {
-		if (getData("mobileTunedV2") == true)
+		if (getData("mobileTunedV3") == true)
 			return;
 
 		setData(60, "maxFPS"); // 120 fps makes most phones run hot for no real gain
@@ -110,7 +110,8 @@ class Options {
 		setData(false, "loadAsynchronously"); // loading from other threads crashes on Android
 		setData(false, "showTracedLines");
 		setData(false, "checkForUpdates");
-		setData(true, "mobileTunedV2");
+		setData(false, "mobileFullscreen"); // off by default, it stretches the picture
+		setData(true, "mobileTunedV3");
 	}
 	#end
 

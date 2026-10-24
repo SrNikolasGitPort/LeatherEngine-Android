@@ -1,5 +1,5 @@
 {
   "overlayEnabled": true,
   "buttonAlpha": 0.35,
-  "slideLanes": false
+  "slideLanes": true
 }
