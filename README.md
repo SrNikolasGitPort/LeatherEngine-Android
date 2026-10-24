@@ -75,6 +75,6 @@ You can have different note types that give different amounts of health or give 
 
 - TheZoroForce240 + FNF-Modcharting-Tools Contributors - [note modifying events (mania changes but modified to work with change ui skin too) generated with song code. Instead of right on the spot](https://github.com/TheZoroForce240/LeatherEngine/blob/main/source/states/PlayState.hx#L1432) and [fnf-modcharting-tools](https://github.com/TheZoroForce240/FNF-Modcharting-Tools) (cool modchart shits, check them out!!!)
 
-## MOBILE PORT
-- Sr Naiko -
-(https://youtube.com/@srnaikoxz?si=BQ44uUEjfXin2pk-)
+## MOBILE PORT CREDITS
+Sr Naiko - *Mobile Porter*
+https://youtube.com/@srnaikoxz?si=BQ44uUEjfXin2pk-
