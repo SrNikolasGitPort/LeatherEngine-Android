@@ -69,7 +69,22 @@ haxelib run lime build android -release -arm64
 
 ## How it works on Android
 
-* The touch controls live in `source/mobile/MobileInput.hx`. They press and release the same keys a keyboard would, so your key binds, the options menu and every mod keep working. Menus get a D-pad plus A / B buttons, songs get one lane per column over the whole screen and a pause button. The look can be tweaked in `assets/mobile_config.json`.
-* Assets live inside the APK, but Polymod needs real files. On the first launch (and after an update) `source/mobile/MobileFiles.hx` copies the bundled `mods/` folder to the app's storage folder and uses it as the working directory.
-* **Adding mods:** copy them into `Android/data/com.leather128.funkin/files/mods/` using a file manager or by connecting the phone to a computer.
+* **Touch controls** (`source/mobile/MobileInput.hx`). They press and release the same keys a keyboard would, so your key binds, the options menu and every mod keep working.
+  * In menus there is a D-pad plus A / B buttons.
+  * In songs the whole screen is the **hitbox**: one transparent column per lane, in the color of that lane's arrow. It adapts to the screen size and to the key count (every extra key adds one lane) and lights up while you touch it. There is also a small pause button in the top right corner.
+* **Options > Mobile Options**
+  * *Hitbox Visible*: hide the colored lanes (they still work).
+  * *Hitbox Opacity*: how visible the lanes are.
+  * *Fullscreen*: hides the system bars.
+  * *Storage*: where the engine folder is (see below), applied the next time the game opens.
+* **Engine folder and mods.** Assets live inside the APK, but Polymod needs real files. Every time the game opens `source/mobile/MobileFiles.hx` makes sure the needed files were copied to the engine folder (the first launch and updates are the only times something is actually copied) and uses it as the working directory. Put your mods in its `mods/` folder.
+
+  | Storage mode         | Engine folder                                         |
+  |----------------------|-------------------------------------------------------|
+  | `EXTERNAL` (default) | `/storage/emulated/0/.Leather1.1.9`                   |
+  | `DATA`               | `Android/data/com.leather128.funkin/files`            |
+  | `MEDIA`              | `Android/media/com.leather128.funkin`                 |
+  | `OBB`                | `Android/obb/com.leather128.funkin`                   |
+
+  `EXTERNAL` needs the "all files access" permission, the game asks for it on the first launch (or you can use the app folder instead). Changing the storage mode doesn't move the files, the new folder is filled with the bundled files the next time the game opens, copy your mods over if you want to keep them.
 * Lua scripts, video cutscenes and Discord Rich Presence are desktop only for now (HScript works).

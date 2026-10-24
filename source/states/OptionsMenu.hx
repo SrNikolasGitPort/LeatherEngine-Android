@@ -26,8 +26,21 @@ class OptionsMenu extends MusicBeatState {
 			#if MODDING_ALLOWED
 			new PageOption("Mod Options", "Mod Options", "Change options for specific mods."),
 			#end
+			#if mobile
+			new PageOption("Mobile Options", "Mobile Options", "Change the touch controls, the fullscreen mode\nand where the engine folder is."),
+			#end
 			new PageOption("Developer Options", "Developer Options", "Change options for developing mods.")
 		],
+		#if mobile
+		"Mobile Options" => [
+			new PageOption("Back", "Categories", "Go back to the main menu."),
+			new BoolOption("Hitbox Visible", "hitboxVisible", "When not toggled, the colored lanes you tap\nduring songs are hidden but still work."),
+			new StepperSaveOption("Hitbox Opacity", 5, 80, "hitboxOpacity", 5, "How visible the colored lanes are.\nUse left and right to change it. (in %)"),
+			new BoolOption("Fullscreen", "mobileFullscreen", "Hides the system bars (status and navigation bar)."),
+			new StorageLocationOption("Storage", mobile.MobileFiles.STORAGE_MODES, "storageLocation",
+				"Where the engine folder with the mods is.\nEXTERNAL: .Leather1.1.9 | DATA: Android/data | MEDIA: Android/media | OBB: Android/obb\nRestart the game to apply it.")
+		],
+		#end
 		"Gameplay" => [
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new GameSubStateOption("Binds", substates.ControlMenuSubstate, "Change key bindings."),
