@@ -245,6 +245,14 @@ class MobileInput extends Sprite {
 	 */
 	var hitboxVisible:Bool = true;
 	var hitboxOpacity:Float = 0.2;
+	var hitboxOnGame:Bool = false;
+
+	/**
+	 * Where the lanes are: the whole screen, or only the game image (after the black bars).
+	 */
+	var areaX:Float = 0;
+
+	var areaWidth:Float = 1;
 
 	/**
 	 * Which button / lane each finger is currently holding.
@@ -321,10 +329,11 @@ class MobileInput extends Sprite {
 		var newKey:String = '$newMode:${Lib.current.stage.stageWidth}x${Lib.current.stage.stageHeight}';
 
 		readOptions();
+		updateArea();
 
 		if (newMode == GAME) {
 			laneKeys = getLaneKeys();
-			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity';
+			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity:$areaX:$areaWidth';
 		} else if (newMode == MENU || newMode == EDITOR) {
 			newKey += ':' + Type.getClassName(Type.getClass(FlxG.state));
 		}
@@ -364,6 +373,27 @@ class MobileInput extends Sprite {
 	}
 
 	/**
+	 * Works out where the lanes go, see `hitboxOnGame`.
+	 */
+	function updateArea():Void {
+		var stageWidth:Float = Lib.current.stage.stageWidth;
+		areaX = 0;
+		areaWidth = stageWidth;
+
+		if (!hitboxOnGame)
+			return;
+
+		try {
+			var x:Float = Math.max(0, FlxG.game.x);
+			var width:Float = FlxG.scaleMode.gameSize.x;
+			if (width > 0 && x + width <= stageWidth + 1) {
+				areaX = Math.round(x);
+				areaWidth = Math.round(width);
+			}
+		} catch (e:Dynamic) {}
+	}
+
+	/**
 	 * Reads the settings from `Options > Mobile Options`.
 	 */
 	function readOptions():Void {
@@ -371,6 +401,8 @@ class MobileInput extends Sprite {
 			var visible:Dynamic = Options.getData("hitboxVisible");
 			if (visible != null)
 				hitboxVisible = visible == true;
+
+			hitboxOnGame = Options.getData("hitboxArea") == "GAME";
 
 			var opacity:Dynamic = Options.getData("hitboxOpacity");
 			if (opacity != null)
@@ -592,9 +624,9 @@ class MobileInput extends Sprite {
 				// the hitbox: one column per lane over the whole screen, it adapts to any key count and any screen size
 				laneColors = getLaneColors(laneKeys.length);
 
-				var laneWidth:Float = stageWidth / laneKeys.length;
+				var laneWidth:Float = areaWidth / laneKeys.length;
 				for (i in 0...laneKeys.length) {
-					var lane:HitboxLane = new HitboxLane(laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity);
+					var lane:HitboxLane = new HitboxLane(areaX + laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity);
 					lane.visible = hitboxVisible;
 					lanes.push(lane);
 					addChild(lane);
@@ -670,7 +702,7 @@ class MobileInput extends Sprite {
 
 	function getLaneAt(x:Float):Int {
 		var count:Int = laneKeys.length;
-		var lane:Int = Std.int(x / (Lib.current.stage.stageWidth / count));
+		var lane:Int = Std.int((x - areaX) / (areaWidth / count));
 		return Std.int(Math.max(0, Math.min(count - 1, lane)));
 	}
 
