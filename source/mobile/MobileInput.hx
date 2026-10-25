@@ -419,6 +419,69 @@ class MobileInput extends Sprite {
 	}
 
 	/**
+	 * Keys of the open editor, `[key, label]` or `[key, label, true]` for keys that stay held (SHIFT / CTRL).
+	 */
+	function getEditorKeys():Array<Array<Dynamic>> {
+		var name:String = Type.getClassName(Type.getClass(FlxG.state));
+		var shift:Array<Dynamic> = [Keyboard.SHIFT, "SHIFT", true];
+		var ctrl:Array<Dynamic> = [Keyboard.CONTROL, "CTRL", true];
+		var esc:Array<Dynamic> = [Keyboard.ESCAPE, "ESC"];
+
+		if (name == "toolbox.ChartingState") {
+			return [
+				[Keyboard.SPACE, "PLAY"],
+				[Keyboard.ENTER, "TEST"],
+				[Keyboard.W, "W"],
+				[Keyboard.S, "S"],
+				[Keyboard.LEFT, "◀"],
+				[Keyboard.RIGHT, "▶"],
+				[Keyboard.Q, "Q"],
+				[Keyboard.E, "E"],
+				shift,
+				ctrl,
+				esc
+			];
+		} else if (name == "toolbox.CharacterCreator") {
+			return [
+				[Keyboard.UP, "▲"],
+				[Keyboard.DOWN, "▼"],
+				[Keyboard.LEFT, "◀"],
+				[Keyboard.RIGHT, "▶"],
+				[Keyboard.W, "W"],
+				[Keyboard.S, "S"],
+				[Keyboard.Q, "Q"],
+				[Keyboard.E, "E"],
+				shift,
+				esc
+			];
+		} else if (name == "toolbox.StageMakingState") {
+			return [
+				[Keyboard.I, "▲"],
+				[Keyboard.K, "▼"],
+				[Keyboard.J, "◀"],
+				[Keyboard.L, "▶"],
+				[Keyboard.Q, "Q"],
+				[Keyboard.E, "E"],
+				shift,
+				esc
+			];
+		}
+
+		// any other editor (the modcharting tools for example)
+		return [
+			[Keyboard.SPACE, "SPACE"],
+			[Keyboard.ENTER, "ENTER"],
+			[Keyboard.UP, "▲"],
+			[Keyboard.DOWN, "▼"],
+			[Keyboard.LEFT, "◀"],
+			[Keyboard.RIGHT, "▶"],
+			shift,
+			ctrl,
+			esc
+		];
+	}
+
+	/**
 	 * The tools (chart editor, character creator, stage maker...) and the modcharting tools editor.
 	 */
 	function isEditor(state:Dynamic):Bool {
@@ -484,39 +547,18 @@ class MobileInput extends Sprite {
 			case HIDDEN | TAP:
 			case EDITOR:
 				{
-					var size:Float = Math.min(stageWidth, stageHeight) * 0.085;
+					// only the keys the open editor really uses, in columns on the right edge of the screen
+					var size:Float = Math.min(stageWidth, stageHeight) * 0.08;
 					var gap:Float = size * 0.12;
-					var keys:Array<Array<Dynamic>> = [
-						[Keyboard.SHIFT, "SHIFT", true],
-						[Keyboard.CONTROL, "CTRL", true],
-						[Keyboard.SPACE, "SPACE"],
-						[Keyboard.ENTER, "ENTER"],
-						[Keyboard.ESCAPE, "ESC"],
-						[Keyboard.TAB, "TAB"],
-						[Keyboard.LEFT, "◀"],
-						[Keyboard.UP, "▲"],
-						[Keyboard.DOWN, "▼"],
-						[Keyboard.RIGHT, "▶"],
-						[Keyboard.Q, "Q"],
-						[Keyboard.E, "E"],
-						[Keyboard.W, "W"],
-						[Keyboard.S, "S"],
-						[Keyboard.Z, "Z"],
-						[Keyboard.X, "X"],
-						[Keyboard.R, "R"],
-						[Keyboard.I, "I"],
-						[Keyboard.J, "J"],
-						[Keyboard.K, "K"],
-						[Keyboard.L, "L"]
-					];
+					var keys:Array<Array<Dynamic>> = getEditorKeys();
 
-					var perRow:Int = Std.int(Math.max(1, Math.floor((stageWidth - gap) / (size + gap))));
+					var perColumn:Int = Std.int(Math.max(1, Math.floor((stageHeight - gap) / (size + gap))));
 					for (i in 0...keys.length) {
-						var column:Int = i % perRow;
-						var row:Int = Std.int(i / perRow);
-						var rows:Int = Math.ceil(keys.length / perRow);
-						var button:VirtualButton = addButton(keys[i][0], keys[i][1], gap + column * (size + gap),
-							stageHeight - (rows - row) * (size + gap), size);
+						var column:Int = Std.int(i / perColumn);
+						var row:Int = i % perColumn;
+						var count:Int = Std.int(Math.min(perColumn, keys.length - column * perColumn));
+						var button:VirtualButton = addButton(keys[i][0], keys[i][1], stageWidth - (column + 1) * (size + gap),
+							(stageHeight - count * (size + gap)) / 2 + row * (size + gap) + gap / 2, size);
 						button.toggle = keys[i].length > 2;
 					}
 				}
