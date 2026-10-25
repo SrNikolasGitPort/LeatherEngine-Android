@@ -135,12 +135,12 @@ class PauseSubState extends MusicBeatSubstate {
 			if (controls.LEFT_P) {
 				curTime -= 1000;
 				holdTime = 0;
-				updateAlphabets(false);
+				updateSkipTime(true);
 			}
 			if (controls.RIGHT_P) {
 				curTime += 1000;
 				holdTime = 0;
-				updateAlphabets(false);
+				updateSkipTime(true);
 			}
 
 			if (controls.LEFT || controls.RIGHT) {
@@ -153,7 +153,7 @@ class PauseSubState extends MusicBeatSubstate {
 					curTime -= FlxG.sound.music.length;
 				else if (curTime < 0)
 					curTime += FlxG.sound.music.length;
-				updateAlphabets(false);
+				updateSkipTime(false);
 			}
 		}
 
@@ -269,8 +269,46 @@ class PauseSubState extends MusicBeatSubstate {
 		}
 	}
 
+	var lastSkipSecond:Int = -1;
+
+	/**
+	 * Updates only the "Skip Time" line instead of rebuilding the whole menu (that is what made holding left / right so laggy),
+	 * and only when the shown second changed.
+	 */
+	function updateSkipTime(playSound:Bool):Void {
+		var second:Int = Std.int(Math.max(0, Math.floor(curTime / 1000)));
+		if (second == lastSkipSecond) {
+			return;
+		}
+		lastSkipSecond = second;
+
+		if (playSound)
+			FlxG.sound.play(Paths.sound('scrollMenu'), 0.4);
+
+		for (i in 0...menus.get(menu).length) {
+			if (!menus.get(menu)[i].toLowerCase().contains('skip time') || i >= grpMenuShit.members.length)
+				continue;
+
+			var old:Alphabet = grpMenuShit.members[i];
+			var songText:Alphabet = new Alphabet(old.x, old.y,
+				"Skip Time " + FlxStringUtil.formatTime(second, false) + ' / ' + FlxStringUtil.formatTime(Math.max(0, Math.floor(FlxG.sound.music.length / 1000)), false),
+				true);
+			songText.isMenuItem = true;
+			songText.targetY = old.targetY;
+			songText.alpha = old.alpha;
+
+			grpMenuShit.members[i] = songText;
+			old.destroy();
+		}
+	}
+
 	function updateAlphabets(?jump:Bool = true) {
+		for (item in grpMenuShit.members) {
+			if (item != null)
+				item.destroy();
+		}
 		grpMenuShit.clear();
+		lastSkipSecond = -1;
 
 		for (i in 0...menus.get(menu).length) {
 			if (menus.get(menu)[i].toLowerCase().contains('skip time')) {

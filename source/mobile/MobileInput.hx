@@ -60,6 +60,11 @@ private enum Mode {
 	TAP;
 
 	/**
+	 * Game over screen: only A (ENTER, try again) and B (ESC, leave).
+	 */
+	DEAD;
+
+	/**
 	 * Chart editor and the other tools: a bar with the keys the editors use.
 	 */
 	EDITOR;
@@ -443,6 +448,8 @@ class MobileInput extends Sprite {
 			if (sub == null)
 				return @:privateAccess cast(state, PlayState).inCutscene ? TAP : GAME;
 			// the result screen has no buttons, tapping the screen is ENTER
+			if (sub is GameOverSubstate)
+				return DEAD;
 			return sub is ResultsSubstate ? TAP : MENU;
 		}
 
@@ -593,6 +600,13 @@ class MobileInput extends Sprite {
 
 		switch (mode) {
 			case HIDDEN | TAP:
+			case DEAD:
+				{
+					var size:Float = Math.min(stageWidth, stageHeight) * 0.14 * 1.15;
+					var margin:Float = Math.min(stageWidth, stageHeight) * 0.14 * 0.35;
+					addButton(Keyboard.ENTER, "A", stageWidth - margin - size, stageHeight - margin - size * 1.9, size);
+					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - size * 2.2, stageHeight - margin - size, size);
+				}
 			case EDITOR:
 				{
 					// only the keys the open editor really uses, in columns on the right edge, each one says what it does

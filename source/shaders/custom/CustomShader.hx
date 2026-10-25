@@ -37,6 +37,10 @@ class CustomShader extends FlxRuntimeShader {
 		var lines:Array<String> = source.split("\n").filter(line -> !StringTools.startsWith(StringTools.ltrim(line), "#version"));
 		source = lines.join("\n");
 
+		// desktop GLSL silently turns `float a = 1;` into `1.0`, OpenGL ES refuses to compile it (it doesn't convert int to float)
+		source = new EReg("(float\\s+\\w+\\s*=\\s*)(-?\\d+)(\\s*;)", "g").replace(source, "$1$2.0$3");
+		source = new EReg("(vec[234]\\s*\\(\\s*)(-?\\d+)(\\s*\\))", "g").replace(source, "$1$2.0$3");
+
 		if (fragment && source.indexOf("#pragma header") != -1) {
 			source = StringTools.replace(source, "#pragma header", "#pragma header\n#ifdef GL_ES\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#endif\n#endif");
 		}

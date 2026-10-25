@@ -219,6 +219,16 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		else
 			scale.set(lmaoStuff, lmaoStuff);
 
+		// the death note sprite is way bigger than a normal arrow (262px wide against 157px), so it spilled over the notes next to it
+		// and looked glued to / inside them. Bring it down to just a little bigger than a normal arrow.
+		var sizeFix:Float = 1;
+		#if mobile
+		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
+			sizeFix = 0.68;
+			scale.set(lmaoStuff * sizeFix, lmaoStuff * sizeFix);
+		}
+		#end
+
 		updateHitbox();
 
 		antialiasing = PlayState.instance.ui_settings[3] == "true" && Options.getData("antialiasing");
@@ -247,7 +257,7 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 			PlayState.instance.setupNoteTypeScript(arrow_Type);
 		}
 
-		offset.y += Std.parseFloat(PlayState.instance.arrow_Configs.get(arrow_Type)[0]) * lmaoStuff * (Options.getData("downscroll") ? -1 : 1);
+		offset.y += Std.parseFloat(PlayState.instance.arrow_Configs.get(arrow_Type)[0]) * lmaoStuff * sizeFix * (Options.getData("downscroll") ? -1 : 1);
 
 		shouldHit = PlayState.instance.type_Configs.get(arrow_Type)[0] == "true";
 		hitDamage = Std.parseFloat(PlayState.instance.type_Configs.get(arrow_Type)[1]);
