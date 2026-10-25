@@ -13,6 +13,14 @@
 			"value": false
 		},
 		{
+			"option": "hideHitboxHint",
+			"value": false
+		},
+		{
+			"option": "hitboxStyle",
+			"value": "CLASSIC"
+		},
+		{
 			"option": "hitboxArea",
 			"value": "SCREEN"
 		},

@@ -172,7 +172,24 @@ class MainMenuState extends MusicBeatState {
 				changeItem(1);
 			}
 
-			if (controls.ACCEPT) {
+			// touch: tap an option to pick it, tap the picked one to open it
+			var tapAccept:Bool = false;
+			#if mobile
+			if (FlxG.mouse.justPressed) {
+				menuItems.forEach(function(spr:FlxSprite) {
+					if (spr.alive && spr.visible && FlxG.mouse.overlaps(spr)) {
+						if (spr.ID == curSelected)
+							tapAccept = true;
+						else {
+							FlxG.sound.play(Paths.sound('scrollMenu'));
+							changeItem(spr.ID - curSelected);
+						}
+					}
+				});
+			}
+			#end
+
+			if (controls.ACCEPT || tapAccept) {
 				selectedSomethin = true;
 				FlxG.sound.play(Paths.sound('confirmMenu'));
 

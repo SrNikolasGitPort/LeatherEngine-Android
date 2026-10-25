@@ -224,7 +224,8 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		var sizeFix:Float = 1;
 		#if mobile
 		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
-			sizeFix = 0.68;
+			// same size as a normal arrow (the visible part of the sprite is 232px against the 157px of a normal arrow)
+			sizeFix = 0.64;
 			scale.set(lmaoStuff * sizeFix, lmaoStuff * sizeFix);
 		}
 		#end
@@ -257,7 +258,13 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 			PlayState.instance.setupNoteTypeScript(arrow_Type);
 		}
 
-		offset.y += Std.parseFloat(PlayState.instance.arrow_Configs.get(arrow_Type)[0]) * lmaoStuff * sizeFix * (Options.getData("downscroll") ? -1 : 1);
+		var noteYOffset:Float = Std.parseFloat(PlayState.instance.arrow_Configs.get(arrow_Type)[0]) * lmaoStuff * sizeFix;
+		#if mobile
+		// instead of the offset made for the oversized sprite, center it on a normal arrow (154px high)
+		if (sizeFix != 1)
+			noteYOffset = ((frameHeight * sizeFix) - 154) / 2 * lmaoStuff;
+		#end
+		offset.y += noteYOffset * (Options.getData("downscroll") ? -1 : 1);
 
 		shouldHit = PlayState.instance.type_Configs.get(arrow_Type)[0] == "true";
 		hitDamage = Std.parseFloat(PlayState.instance.type_Configs.get(arrow_Type)[1]);

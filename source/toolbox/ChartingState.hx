@@ -1805,6 +1805,16 @@ class ChartingState extends MusicBeatState {
 
 			note.x = Math.floor((daNoteInfo + 1) * GRID_SIZE) + Std.parseFloat(PlayState.instance.arrow_Configs.get(daType)[1]);
 			note.y = Math.floor(getYfromStrum((daStrumTime - sectionStartTime())) + Std.parseFloat(PlayState.instance.arrow_Configs.get(daType)[3]));
+
+			#if mobile
+			// the death note sprite is bigger than the others, draw it the same size as a normal note and centered on its square of the grid
+			if (daType == "death" && note.frameWidth >= 240) {
+				note.setGraphicSize(0, GRID_SIZE);
+				note.updateHitbox();
+				note.x = Math.floor((daNoteInfo + 1) * GRID_SIZE) + (GRID_SIZE - note.width) / 2;
+				note.y = Math.floor(getYfromStrum((daStrumTime - sectionStartTime()))) + (GRID_SIZE - note.height) / 2;
+			}
+			#end
 			note.antialiasing = uiSettings[3] == "true";
 
 			note.rawNoteData = daNoteInfo;

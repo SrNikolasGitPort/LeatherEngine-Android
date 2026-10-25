@@ -5,6 +5,7 @@ import states.PlayState;
 import flixel.addons.display.FlxRuntimeShader;
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
+import shaders.ShaderSanitizer;
 
 /**
  * Basically just FlxRuntimeShader but it has tween support
@@ -12,8 +13,9 @@ import flixel.tweens.FlxTween;
 class CustomShader extends FlxRuntimeShader {
 	override public function new(?fragmentSource:String, ?vertexSource:String) {
 		#if mobile
-		fragmentSource = fixSource(fragmentSource, true);
-		vertexSource = fixSource(vertexSource, false);
+		var defaults:Array<ShaderSanitizer.UniformDefault> = [];
+		fragmentSource = ShaderSanitizer.fragment(fragmentSource, defaults);
+		vertexSource = ShaderSanitizer.vertex(vertexSource);
 		#end
 
 		try {
@@ -22,30 +24,48 @@ class CustomShader extends FlxRuntimeShader {
 			trace(e.details(), ERROR);
 			trace(e, ERROR);
 		}
+
+		#if mobile
+		applyDefaults(defaults);
+		#end
 	}
 
 	#if mobile
 	/**
-	 * Shaders made for desktop OpenGL often don't compile on phones (OpenGL ES):
-	 * - a `#version 120` line (or any other) is removed, the right version is added by OpenFL,
-	 * - phones default to low precision floats which breaks a lot of shaders (banding, black screens), so `highp` is asked for.
+	 * OpenGL ES can't give a uniform a value in the shader (`uniform float amount = 1.0;`), so the sanitizer takes it out
+	 * and the value is set here.
 	 */
-	static function fixSource(source:Null<String>, fragment:Bool):Null<String> {
-		if (source == null)
-			return null;
+	function applyDefaults(defaults:Array<ShaderSanitizer.UniformDefault>):Void {
+		for (uniform in defaults) {
+			try {
+				var numbers:EReg = new EReg("-?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?", "g");
+				var values:Array<Float> = [];
+				var text:String = uniform.value;
+				while (numbers.match(text)) {
+					values.push(Std.parseFloat(numbers.matched(0)));
+					text = numbers.matchedRight();
+				}
 
-		var lines:Array<String> = source.split("\n").filter(line -> !StringTools.startsWith(StringTools.ltrim(line), "#version"));
-		source = lines.join("\n");
-
-		// desktop GLSL silently turns `float a = 1;` into `1.0`, OpenGL ES refuses to compile it (it doesn't convert int to float)
-		source = new EReg("(float\\s+\\w+\\s*=\\s*)(-?\\d+)(\\s*;)", "g").replace(source, "$1$2.0$3");
-		source = new EReg("(vec[234]\\s*\\(\\s*)(-?\\d+)(\\s*\\))", "g").replace(source, "$1$2.0$3");
-
-		if (fragment && source.indexOf("#pragma header") != -1) {
-			source = StringTools.replace(source, "#pragma header", "#pragma header\n#ifdef GL_ES\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#endif\n#endif");
+				switch (uniform.type) {
+					case "float":
+						if (values.length > 0)
+							setFloat(uniform.name, values[0]);
+					case "int":
+						if (values.length > 0)
+							setInt(uniform.name, Std.int(values[0]));
+					case "bool":
+						setBool(uniform.name, uniform.value == "true" || (values.length > 0 && values[0] != 0));
+					case "vec2" | "vec3" | "vec4":
+						var count:Int = Std.parseInt(uniform.type.substr(3));
+						// vec3(1.0) fills every component
+						while (values.length > 0 && values.length < count)
+							values.push(values[values.length - 1]);
+						if (values.length >= count)
+							setFloatArray(uniform.name, values.slice(0, count));
+					default:
+				}
+			} catch (e:Dynamic) {}
 		}
-
-		return source;
 	}
 	#end
 

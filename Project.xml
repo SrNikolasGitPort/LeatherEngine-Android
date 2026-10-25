@@ -28,7 +28,7 @@
 
 	<define name="MODCHARTING_TOOLS" /> <!--  Allows for Modcharting Tools to be used. -->
 
-	<define name="LUA_ALLOWED" if="desktop" /> <!--  Allows support for Lua scripting -->
+	<define name="LUA_ALLOWED" if="desktop || android" /> <!--  Allows support for Lua scripting -->
 	<define name="HSCRIPT_ALLOWED" /> <!--  Allows support for Haxe scripting (HScript) -->
 
 	<define name="CHECK_FOR_UPDATES" /> <!-- Allows the game to connect to GitHub to check for an

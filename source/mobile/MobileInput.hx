@@ -156,8 +156,20 @@ private class HitboxLane extends Sprite {
 	var opacity:Float;
 	var pressed:Bool = false;
 
-	public function new(x:Float, laneWidth:Float, laneHeight:Float, color:Int, opacity:Float) {
+	/**
+	 * `Hide Hitbox Hint`: the lane is invisible until it is touched.
+	 */
+	var hideIdle:Bool;
+
+	/**
+	 * V-Slice style: the color fades in from the top of the screen to the strum line at the bottom.
+	 */
+	var gradient:Bool;
+
+	public function new(x:Float, laneWidth:Float, laneHeight:Float, color:Int, opacity:Float, hideIdle:Bool = false, gradient:Bool = false) {
 		super();
+		this.hideIdle = hideIdle;
+		this.gradient = gradient;
 		this.laneWidth = laneWidth;
 		this.laneHeight = laneHeight;
 		this.color = color;
@@ -180,8 +192,18 @@ private class HitboxLane extends Sprite {
 	function redraw():Void {
 		graphics.clear();
 
+		if (hideIdle && !pressed)
+			return;
+
+		var fill:Float = pressed ? Math.min(1, opacity * 2.4) : opacity;
+
 		// the column itself
-		graphics.beginFill(color, pressed ? Math.min(1, opacity * 2.4) : opacity);
+		if (gradient) {
+			var matrix:openfl.geom.Matrix = new openfl.geom.Matrix();
+			matrix.createGradientBox(laneWidth, laneHeight, Math.PI / 2, 0, 0);
+			graphics.beginGradientFill(openfl.display.GradientType.LINEAR, [color, color], [0, Math.min(1, fill * 2.2)], [0, 255], matrix);
+		} else
+			graphics.beginFill(color, fill);
 		graphics.drawRect(0, 0, laneWidth, laneHeight);
 		graphics.endFill();
 
@@ -251,6 +273,8 @@ class MobileInput extends Sprite {
 	var hitboxVisible:Bool = true;
 	var hitboxOpacity:Float = 0.2;
 	var hitboxOnGame:Bool = false;
+	var hideHint:Bool = false;
+	var vSliceStyle:Bool = false;
 
 	/**
 	 * Where the lanes are: the whole screen, or only the game image (after the black bars).
@@ -299,6 +323,10 @@ class MobileInput extends Sprite {
 		stage.addEventListener(Event.ENTER_FRAME, instance.onFrame);
 		stage.addEventListener(Event.DEACTIVATE, instance.onDeactivate);
 
+		// the Android back button / gesture works like ESC
+		lime.app.Application.current.window.onKeyDown.add(instance.onSystemKeyDown);
+		lime.app.Application.current.window.onKeyUp.add(instance.onSystemKeyUp);
+
 		FlxG.signals.postStateSwitch.add(() -> hideFlag = false);
 	}
 
@@ -338,7 +366,7 @@ class MobileInput extends Sprite {
 
 		if (newMode == GAME) {
 			laneKeys = getLaneKeys();
-			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity:$areaX:$areaWidth';
+			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity:$areaX:$areaWidth:$hideHint:$vSliceStyle';
 		} else if (newMode == MENU || newMode == EDITOR) {
 			newKey += ':' + Type.getClassName(Type.getClass(FlxG.state));
 		}
@@ -408,6 +436,8 @@ class MobileInput extends Sprite {
 				hitboxVisible = visible == true;
 
 			hitboxOnGame = Options.getData("hitboxArea") == "GAME";
+			hideHint = Options.getData("hideHitboxHint") == true;
+			vSliceStyle = Options.getData("hitboxStyle") == "V-SLICE";
 
 			var opacity:Dynamic = Options.getData("hitboxOpacity");
 			if (opacity != null)
@@ -547,23 +577,33 @@ class MobileInput extends Sprite {
 	/**
 	 * The keys of every lane, taken from the player's binds for the current key count.
 	 */
-	function getLaneKeys():Array<Int> {
-		var keys:Array<Int> = [];
+	var cachedBinds:Array<String> = null;
+	var cachedBindsText:String = "";
+	var cachedKeys:Array<Int> = [];
 
+	function getLaneKeys():Array<Int> {
 		try {
 			var count:Int = PlayState.SONG.playerKeyCount;
 			var binds:Array<String> = Options.getData("binds", "binds")[count - 1];
 
+			// this runs every frame during a song, the keys are only worked out again when the binds change
+			var text:String = binds.join(",");
+			if (binds == cachedBinds && text == cachedBindsText)
+				return cachedKeys;
+
+			var keys:Array<Int> = [];
 			for (bind in binds)
 				keys.push(FlxKey.fromString(bind));
-		} catch (e:Dynamic) {
-			keys = [];
-		}
 
-		if (keys.length == 0)
-			keys = [Keyboard.LEFT, Keyboard.DOWN, Keyboard.UP, Keyboard.RIGHT];
+			if (keys.length > 0) {
+				cachedBinds = binds;
+				cachedBindsText = text;
+				cachedKeys = keys;
+				return keys;
+			}
+		} catch (e:Dynamic) {}
 
-		return keys;
+		return [Keyboard.LEFT, Keyboard.DOWN, Keyboard.UP, Keyboard.RIGHT];
 	}
 
 	function getBind(name:String, fallback:Int):Int {
@@ -640,7 +680,9 @@ class MobileInput extends Sprite {
 
 				var laneWidth:Float = areaWidth / laneKeys.length;
 				for (i in 0...laneKeys.length) {
-					var lane:HitboxLane = new HitboxLane(areaX + laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity);
+					// the V-Slice style is only for 4 keys, any other key count keeps the classic lanes
+					var lane:HitboxLane = new HitboxLane(areaX + laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity, hideHint,
+						vSliceStyle && laneKeys.length == 4);
 					lane.visible = hitboxVisible;
 					lanes.push(lane);
 					addChild(lane);
@@ -810,6 +852,16 @@ class MobileInput extends Sprite {
 			if (lane < laneKeys.length)
 				releaseKey(laneKeys[lane]);
 		}
+	}
+
+	function onSystemKeyDown(code:lime.ui.KeyCode, modifier:lime.ui.KeyModifier):Void {
+		if (code == lime.ui.KeyCode.APP_CONTROL_BACK)
+			pressKey(Keyboard.ESCAPE);
+	}
+
+	function onSystemKeyUp(code:lime.ui.KeyCode, modifier:lime.ui.KeyModifier):Void {
+		if (code == lime.ui.KeyCode.APP_CONTROL_BACK)
+			releaseKey(Keyboard.ESCAPE);
 	}
 
 	function onDeactivate(_:Event):Void {

@@ -1848,6 +1848,46 @@ class PlayState extends MusicBeatState {
 
 	var fixedUpdateTime:Float = 0.0;
 
+	var lastDirectionAnim:String = "";
+	var lastDirectionTurn:Bool = false;
+
+	/**
+	 * "Camera Tracks Direction": the camera used to be moved before it was placed on the character, so the option did nothing.
+	 * Now the camera is placed again every time the animation of the character it's looking at changes.
+	 */
+	function updateDirectionCamera():Void {
+		if (!Options.getData("cameraTracksDirections") || !generatedMusic || paused || lockedCamera || centerCamera || SONG.notes == null)
+			return;
+
+		var section = SONG.notes[Std.int(curStep / Conductor.stepsPerSection)];
+		if (section == null)
+			return;
+
+		var bfTurn:Bool = section.mustHitSection;
+		var focus:Character = bfTurn ? boyfriend : dad;
+		var main:Character = focus.getMainCharacter();
+		var anim:String = main.hasAnims() ? main.curAnimName().toLowerCase() : "";
+
+		if (anim == lastDirectionAnim && bfTurn == lastDirectionTurn)
+			return;
+
+		lastDirectionAnim = anim;
+		lastDirectionTurn = bfTurn;
+
+		var midPos:FlxPoint = main.getMidpoint();
+		if (bfTurn) {
+			midPos.x += stage.p1_Cam_Offset.x;
+			midPos.y += stage.p1_Cam_Offset.y;
+			camFollow.setPosition(midPos.x - 100 + main.cameraOffset[0], midPos.y - 100 + main.cameraOffset[1]);
+		} else {
+			midPos.x += stage.p2_Cam_Offset.x;
+			midPos.y += stage.p2_Cam_Offset.y;
+			camFollow.setPosition(midPos.x + 150 + main.cameraOffset[0], midPos.y - 100 + main.cameraOffset[1]);
+		}
+
+		trackSingDirection(focus);
+	}
+
 	function trackSingDirection(char:Character):Void {
 		if (Options.getData("cameraTracksDirections") && char.getMainCharacter().hasAnims()) {
 			switch (char.getMainCharacter().curAnimName().toLowerCase()) {
@@ -2018,6 +2058,8 @@ class PlayState extends MusicBeatState {
 				}
 			}
 		}
+
+		updateDirectionCamera();
 
 		// RESET = Quick Game Over Screen
 		if ((Options.getData("resetButton") && !switchedStates && controls.RESET) || (Options.getData("noHit") && misses > 0))
