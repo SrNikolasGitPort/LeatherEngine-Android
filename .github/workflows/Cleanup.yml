@@ -1,0 +1,23 @@
+name: Cleanup old branches and releases
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete the old test releases and branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in v1.1.9-android-r2 v1.1.9-android-r3 v1.1.9-android-r4 Android-Release; do
+            gh release delete "$tag" --cleanup-tag --yes || true
+          done
+          for branch in android-port fix/android-workflow; do
+            git push origin --delete "$branch" || true
+          done
