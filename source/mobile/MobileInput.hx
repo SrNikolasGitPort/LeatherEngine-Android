@@ -73,6 +73,11 @@ private class VirtualButton extends Sprite {
 	public var size(default, null):Float;
 
 	/**
+	 * Width of the button, it is the same as `size` unless the button has a description next to its name (editors).
+	 */
+	public var buttonWidth(default, null):Float;
+
+	/**
 	 * Toggle buttons stay held after a touch (SHIFT / CTRL in the editors) and are released by touching them again.
 	 */
 	public var toggle:Bool = false;
@@ -81,10 +86,11 @@ private class VirtualButton extends Sprite {
 	var pressed:Bool = false;
 	var baseAlpha:Float;
 
-	public function new(keyCode:Int, text:String, x:Float, y:Float, size:Float, baseAlpha:Float) {
+	public function new(keyCode:Int, text:String, x:Float, y:Float, size:Float, baseAlpha:Float, ?width:Float) {
 		super();
 		this.keyCode = keyCode;
 		this.size = size;
+		this.buttonWidth = width ?? size;
 		this.baseAlpha = baseAlpha;
 
 		mouseEnabled = false;
@@ -94,9 +100,11 @@ private class VirtualButton extends Sprite {
 		label.selectable = false;
 		label.mouseEnabled = false;
 		label.autoSize = TextFieldAutoSize.NONE;
-		label.width = size;
-		label.defaultTextFormat = new TextFormat("_sans", Std.int(size * (text.length > 2 ? 0.28 : 0.45)), 0xFFFFFF, true, null, null, null, null,
-			TextFormatAlign.CENTER);
+		label.width = buttonWidth;
+		var fontSize:Int = Std.int(size * (text.length > 2 ? 0.28 : 0.45));
+		if (buttonWidth > size)
+			fontSize = Std.int(Math.min(size * 0.4, buttonWidth / (text.length * 0.6)));
+		label.defaultTextFormat = new TextFormat("_sans", fontSize, 0xFFFFFF, true, null, null, null, null, TextFormatAlign.CENTER);
 		label.text = text;
 		label.height = size;
 		label.y = (size - label.textHeight) / 2 - 3;
@@ -110,7 +118,7 @@ private class VirtualButton extends Sprite {
 	public function hits(stageX:Float, stageY:Float):Bool {
 		// a bit of slack around the visible button makes them way easier to hit
 		var slack:Float = size * 0.15;
-		return stageX >= x - slack && stageX <= x + size + slack && stageY >= y - slack && stageY <= y + size + slack;
+		return stageX >= x - slack && stageX <= x + buttonWidth + slack && stageY >= y - slack && stageY <= y + size + slack;
 	}
 
 	public function isPressed():Bool {
@@ -128,7 +136,7 @@ private class VirtualButton extends Sprite {
 		graphics.clear();
 		graphics.lineStyle(3, 0xFFFFFF, pressed ? 0.9 : baseAlpha + 0.2);
 		graphics.beginFill(pressed ? 0x5FCBFF : 0x000000, pressed ? 0.55 : baseAlpha);
-		graphics.drawRoundRect(0, 0, size, size, size * 0.3, size * 0.3);
+		graphics.drawRoundRect(0, 0, buttonWidth, size, size * 0.3, size * 0.3);
 		graphics.endFill();
 	}
 }
@@ -423,45 +431,53 @@ class MobileInput extends Sprite {
 	 */
 	function getEditorKeys():Array<Array<Dynamic>> {
 		var name:String = Type.getClassName(Type.getClass(FlxG.state));
-		var shift:Array<Dynamic> = [Keyboard.SHIFT, "SHIFT", true];
-		var ctrl:Array<Dynamic> = [Keyboard.CONTROL, "CTRL", true];
-		var esc:Array<Dynamic> = [Keyboard.ESCAPE, "ESC"];
+		// [key, text on the button, toggle]
+		var shift:Array<Dynamic> = [Keyboard.SHIFT, "SHIFT - modifier", true];
+		var ctrl:Array<Dynamic> = [Keyboard.CONTROL, "CTRL - modifier", true];
+		var esc:Array<Dynamic> = [Keyboard.ESCAPE, "ESC - back"];
 
 		if (name == "toolbox.ChartingState") {
 			return [
-				[Keyboard.SPACE, "PLAY"],
-				[Keyboard.ENTER, "TEST"],
-				[Keyboard.W, "W"],
-				[Keyboard.S, "S"],
-				[Keyboard.LEFT, "◀"],
-				[Keyboard.RIGHT, "▶"],
-				[Keyboard.Q, "Q"],
-				[Keyboard.E, "E"],
+				[Keyboard.SPACE, "SPACE - play / pause"],
+				[Keyboard.ENTER, "ENTER - test song"],
+				[Keyboard.W, "W - scroll up"],
+				[Keyboard.S, "S - scroll down"],
+				[Keyboard.LEFT, "◀ - previous section"],
+				[Keyboard.RIGHT, "▶ - next section"],
+				[Keyboard.Q, "Q - shorter hold"],
+				[Keyboard.E, "E - longer hold"],
+				[Keyboard.Z, "Z - zoom out"],
+				[Keyboard.X, "X - zoom in"],
+				[Keyboard.R, "R - reset section"],
+				[Keyboard.TAB, "TAB - next tab"],
 				shift,
 				ctrl,
 				esc
 			];
 		} else if (name == "toolbox.CharacterCreator") {
 			return [
-				[Keyboard.UP, "▲"],
-				[Keyboard.DOWN, "▼"],
-				[Keyboard.LEFT, "◀"],
-				[Keyboard.RIGHT, "▶"],
-				[Keyboard.W, "W"],
-				[Keyboard.S, "S"],
-				[Keyboard.Q, "Q"],
-				[Keyboard.E, "E"],
+				[Keyboard.SPACE, "SPACE - play anim"],
+				[Keyboard.W, "W - previous anim"],
+				[Keyboard.S, "S - next anim"],
+				[Keyboard.UP, "▲ - offset up"],
+				[Keyboard.DOWN, "▼ - offset down"],
+				[Keyboard.LEFT, "◀ - offset left"],
+				[Keyboard.RIGHT, "▶ - offset right"],
+				[Keyboard.Q, "Q - zoom out"],
+				[Keyboard.E, "E - zoom in"],
+				[Keyboard.Z, "Z - show stage"],
+				[Keyboard.X, "X - flip side"],
 				shift,
 				esc
 			];
 		} else if (name == "toolbox.StageMakingState") {
 			return [
-				[Keyboard.I, "▲"],
-				[Keyboard.K, "▼"],
-				[Keyboard.J, "◀"],
-				[Keyboard.L, "▶"],
-				[Keyboard.Q, "Q"],
-				[Keyboard.E, "E"],
+				[Keyboard.I, "I - move up"],
+				[Keyboard.K, "K - move down"],
+				[Keyboard.J, "J - move left"],
+				[Keyboard.L, "L - move right"],
+				[Keyboard.Q, "Q - zoom out"],
+				[Keyboard.E, "E - zoom in"],
 				shift,
 				esc
 			];
@@ -469,12 +485,12 @@ class MobileInput extends Sprite {
 
 		// any other editor (the modcharting tools for example)
 		return [
-			[Keyboard.SPACE, "SPACE"],
-			[Keyboard.ENTER, "ENTER"],
-			[Keyboard.UP, "▲"],
-			[Keyboard.DOWN, "▼"],
-			[Keyboard.LEFT, "◀"],
-			[Keyboard.RIGHT, "▶"],
+			[Keyboard.SPACE, "SPACE - play / pause"],
+			[Keyboard.ENTER, "ENTER - accept"],
+			[Keyboard.UP, "▲ - up"],
+			[Keyboard.DOWN, "▼ - down"],
+			[Keyboard.LEFT, "◀ - left"],
+			[Keyboard.RIGHT, "▶ - right"],
 			shift,
 			ctrl,
 			esc
@@ -547,8 +563,9 @@ class MobileInput extends Sprite {
 			case HIDDEN | TAP:
 			case EDITOR:
 				{
-					// only the keys the open editor really uses, in columns on the right edge of the screen
-					var size:Float = Math.min(stageWidth, stageHeight) * 0.08;
+					// only the keys the open editor really uses, in columns on the right edge, each one says what it does
+					var size:Float = Math.min(stageWidth, stageHeight) * 0.075;
+					var width:Float = size * 3.6;
 					var gap:Float = size * 0.12;
 					var keys:Array<Array<Dynamic>> = getEditorKeys();
 
@@ -557,9 +574,9 @@ class MobileInput extends Sprite {
 						var column:Int = Std.int(i / perColumn);
 						var row:Int = i % perColumn;
 						var count:Int = Std.int(Math.min(perColumn, keys.length - column * perColumn));
-						var button:VirtualButton = addButton(keys[i][0], keys[i][1], stageWidth - (column + 1) * (size + gap),
-							(stageHeight - count * (size + gap)) / 2 + row * (size + gap) + gap / 2, size);
-						button.toggle = keys[i].length > 2;
+						var button:VirtualButton = addButton(keys[i][0], keys[i][1], stageWidth - (column + 1) * (width + gap),
+							(stageHeight - count * (size + gap)) / 2 + row * (size + gap) + gap / 2, size, width);
+						button.toggle = keys[i].length > 2 && keys[i][2] == true;
 					}
 				}
 			case PROMPT:
@@ -632,8 +649,8 @@ class MobileInput extends Sprite {
 		}
 	}
 
-	function addButton(keyCode:Int, text:String, x:Float, y:Float, size:Float):VirtualButton {
-		var button:VirtualButton = new VirtualButton(keyCode, text, x, y, size, buttonAlpha);
+	function addButton(keyCode:Int, text:String, x:Float, y:Float, size:Float, ?width:Float):VirtualButton {
+		var button:VirtualButton = new VirtualButton(keyCode, text, x, y, size, buttonAlpha, width);
 		// with the overlay turned off the buttons are invisible but can still be touched
 		button.visible = overlayEnabled;
 		buttons.push(button);
