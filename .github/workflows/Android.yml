@@ -178,7 +178,7 @@ jobs:
           3. Coloque seus mods em `.Leather1.1.9/mods/`.
 
           **O que tem**
-          - Controles de toque: botões Y/N no aviso de luzes, nenhum botão no Title, D-pad + A/B + MODS no menu, botão C no Freeplay (segure e deslize para mudar a velocidade) e hitbox por lane (cores das setas, qualquer quantidade de teclas, dá para deslizar entre as lanes).
+          - Controles de toque: barra de teclas nos editores (Chart Editor etc.), botões do Story Mode, X (ouvir) e Y (resetar score) no Freeplay, tela de resultado sem botões (toque = Enter), botões Y/N no aviso de luzes, nenhum botão no Title, D-pad + A/B + MODS no menu, botão C no Freeplay (segure e deslize para mudar a velocidade) e hitbox por lane (cores das setas, qualquer quantidade de teclas, dá para deslizar entre as lanes).
           - Options > Mobile Options: hitbox visível e opacidade, fullscreen (preenche a tela sem bordas pretas) e pasta da engine (EXTERNAL, DATA, MEDIA, OBB).
           - Mods com HScript.
 
@@ -188,6 +188,9 @@ jobs:
           - A chave de assinatura é gerada a cada build. Para instalar uma versão nova, desinstale a anterior antes.
           NOTES
           sed -i 's/^          //' release_notes.md
+
+          # the same tag can be used again: the old release of that tag is replaced by the new build
+          gh release delete "$TAG" --cleanup-tag --yes || true
 
           gh release create "$TAG" "$apk" \
             --target "$GITHUB_SHA" \

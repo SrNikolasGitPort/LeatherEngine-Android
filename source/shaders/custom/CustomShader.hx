@@ -11,6 +11,11 @@ import flixel.tweens.FlxTween;
  */
 class CustomShader extends FlxRuntimeShader {
 	override public function new(?fragmentSource:String, ?vertexSource:String) {
+		#if mobile
+		fragmentSource = fixSource(fragmentSource, true);
+		vertexSource = fixSource(vertexSource, false);
+		#end
+
 		try {
 			super(fragmentSource, vertexSource);
 		} catch (e) {
@@ -18,6 +23,27 @@ class CustomShader extends FlxRuntimeShader {
 			trace(e, ERROR);
 		}
 	}
+
+	#if mobile
+	/**
+	 * Shaders made for desktop OpenGL often don't compile on phones (OpenGL ES):
+	 * - a `#version 120` line (or any other) is removed, the right version is added by OpenFL,
+	 * - phones default to low precision floats which breaks a lot of shaders (banding, black screens), so `highp` is asked for.
+	 */
+	static function fixSource(source:Null<String>, fragment:Bool):Null<String> {
+		if (source == null)
+			return null;
+
+		var lines:Array<String> = source.split("\n").filter(line -> !StringTools.startsWith(StringTools.ltrim(line), "#version"));
+		source = lines.join("\n");
+
+		if (fragment && source.indexOf("#pragma header") != -1) {
+			source = StringTools.replace(source, "#pragma header", "#pragma header\n#ifdef GL_ES\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#endif\n#endif");
+		}
+
+		return source;
+	}
+	#end
 
 	/**
 	 * Tweens a shader to a value

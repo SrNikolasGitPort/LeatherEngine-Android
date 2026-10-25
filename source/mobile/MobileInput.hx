@@ -23,7 +23,11 @@ import states.FreeplayState;
 import states.LoadingState;
 import states.MainMenuState;
 import states.PlayState;
+import states.StoryMenuState;
 import states.TitleState;
+import substates.GameOverSubstate;
+import substates.PauseSubState;
+import substates.ResultsSubstate;
 import utilities.NoteVariables;
 
 /**
@@ -49,6 +53,16 @@ private enum Mode {
 	 * Nothing on screen (title screen, loading screens, after a song was picked).
 	 */
 	HIDDEN;
+
+	/**
+	 * No buttons at all, touching anywhere on the screen counts as ENTER (result screen, cutscenes).
+	 */
+	TAP;
+
+	/**
+	 * Chart editor and the other tools: a bar with the keys the editors use.
+	 */
+	EDITOR;
 }
 
 /**
@@ -57,6 +71,11 @@ private enum Mode {
 private class VirtualButton extends Sprite {
 	public var keyCode(default, null):Int;
 	public var size(default, null):Float;
+
+	/**
+	 * Toggle buttons stay held after a touch (SHIFT / CTRL in the editors) and are released by touching them again.
+	 */
+	public var toggle:Bool = false;
 
 	var label:TextField;
 	var pressed:Bool = false;
@@ -92,6 +111,10 @@ private class VirtualButton extends Sprite {
 		// a bit of slack around the visible button makes them way easier to hit
 		var slack:Float = size * 0.15;
 		return stageX >= x - slack && stageX <= x + size + slack && stageY >= y - slack && stageY <= y + size + slack;
+	}
+
+	public function isPressed():Bool {
+		return pressed;
 	}
 
 	public function setPressed(value:Bool):Void {
@@ -196,6 +219,11 @@ class MobileInput extends Sprite {
 	 */
 	var speedTouches:Map<Int, Float> = new Map();
 
+	/**
+	 * Fingers that are tapping the screen in `TAP` mode.
+	 */
+	var tapTouches:Map<Int, Bool> = new Map();
+
 	var speedSteps:Int = 0;
 	var nextTapFrame:Int = 0;
 
@@ -289,8 +317,8 @@ class MobileInput extends Sprite {
 		if (newMode == GAME) {
 			laneKeys = getLaneKeys();
 			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity';
-		} else if (newMode == MENU) {
-			newKey += ':${FlxG.state is MainMenuState}:${FlxG.state is FreeplayState}';
+		} else if (newMode == MENU || newMode == EDITOR) {
+			newKey += ':' + Type.getClassName(Type.getClass(FlxG.state));
 		}
 
 		if (newKey != layoutKey) {
@@ -370,8 +398,13 @@ class MobileInput extends Sprite {
 	function getWantedMode():Mode {
 		var state = FlxG.state;
 
-		if (state is PlayState)
-			return state.subState == null ? GAME : MENU;
+		if (state is PlayState) {
+			var sub = state.subState;
+			if (sub == null)
+				return @:privateAccess cast(state, PlayState).inCutscene ? TAP : GAME;
+			// the result screen has no buttons, tapping the screen is ENTER
+			return sub is ResultsSubstate ? TAP : MENU;
+		}
 
 		if (hideFlag || state is TitleState || state is LoadingState)
 			return HIDDEN;
@@ -379,7 +412,18 @@ class MobileInput extends Sprite {
 		if (state is FlashingLightsMenu)
 			return cast(state, FlashingLightsMenu).canInput ? PROMPT : HIDDEN;
 
+		if (isEditor(state))
+			return EDITOR;
+
 		return MENU;
+	}
+
+	/**
+	 * The tools (chart editor, character creator, stage maker...) and the modcharting tools editor.
+	 */
+	function isEditor(state:Dynamic):Bool {
+		var name:String = Type.getClassName(Type.getClass(state));
+		return (name.indexOf("toolbox.") == 0 && name != "toolbox.ToolboxState") || name.indexOf("ModchartEditor") != -1;
 	}
 
 	/**
@@ -402,6 +446,15 @@ class MobileInput extends Sprite {
 			keys = [Keyboard.LEFT, Keyboard.DOWN, Keyboard.UP, Keyboard.RIGHT];
 
 		return keys;
+	}
+
+	function getBind(name:String, fallback:Int):Int {
+		try {
+			var key:Int = FlxKey.fromString(Options.getData(name, "binds"));
+			if (key > 0)
+				return key;
+		} catch (e:Dynamic) {}
+		return fallback;
 	}
 
 	function getPauseKey():Int {
@@ -428,7 +481,45 @@ class MobileInput extends Sprite {
 		var stageHeight:Float = Lib.current.stage.stageHeight;
 
 		switch (mode) {
-			case HIDDEN:
+			case HIDDEN | TAP:
+			case EDITOR:
+				{
+					var size:Float = Math.min(stageWidth, stageHeight) * 0.085;
+					var gap:Float = size * 0.12;
+					var keys:Array<Array<Dynamic>> = [
+						[Keyboard.SHIFT, "SHIFT", true],
+						[Keyboard.CONTROL, "CTRL", true],
+						[Keyboard.SPACE, "SPACE"],
+						[Keyboard.ENTER, "ENTER"],
+						[Keyboard.ESCAPE, "ESC"],
+						[Keyboard.TAB, "TAB"],
+						[Keyboard.LEFT, "◀"],
+						[Keyboard.UP, "▲"],
+						[Keyboard.DOWN, "▼"],
+						[Keyboard.RIGHT, "▶"],
+						[Keyboard.Q, "Q"],
+						[Keyboard.E, "E"],
+						[Keyboard.W, "W"],
+						[Keyboard.S, "S"],
+						[Keyboard.Z, "Z"],
+						[Keyboard.X, "X"],
+						[Keyboard.R, "R"],
+						[Keyboard.I, "I"],
+						[Keyboard.J, "J"],
+						[Keyboard.K, "K"],
+						[Keyboard.L, "L"]
+					];
+
+					var perRow:Int = Std.int(Math.max(1, Math.floor((stageWidth - gap) / (size + gap))));
+					for (i in 0...keys.length) {
+						var column:Int = i % perRow;
+						var row:Int = Std.int(i / perRow);
+						var rows:Int = Math.ceil(keys.length / perRow);
+						var button:VirtualButton = addButton(keys[i][0], keys[i][1], gap + column * (size + gap),
+							stageHeight - (rows - row) * (size + gap), size);
+						button.toggle = keys[i].length > 2;
+					}
+				}
 			case PROMPT:
 				{
 					var size:Float = Math.min(stageWidth, stageHeight) * 0.26;
@@ -476,19 +567,36 @@ class MobileInput extends Sprite {
 						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
 					#end
 
-					// hold C (SHIFT) and slide left / right to change the song speed
-					if (FlxG.state is FreeplayState)
-						addButton(Keyboard.SHIFT, "C", stageWidth - margin - bigSize * 3.4, stageHeight - margin - bigSize, bigSize);
+					var extraX:Float = stageWidth - margin - bigSize * 3.4;
+					var extraY:Float = stageHeight - margin - bigSize * 2.2;
+					var resetX:Float = stageWidth - margin - bigSize * 2.2;
+
+					if (FlxG.state is FreeplayState) {
+						// hold C (SHIFT) and slide left / right to change the song speed
+						addButton(Keyboard.SHIFT, "C", extraX, stageHeight - margin - bigSize, bigSize);
+						// X listens to the song, Y resets the score
+						addButton(Keyboard.SPACE, "X", extraX, extraY, bigSize);
+						addButton(getBind("kill", Keyboard.R), "Y", resetX, extraY, bigSize);
+					} else if (FlxG.state is StoryMenuState) {
+						// Q / E change the week group, Y resets the score of the week
+						addButton(Keyboard.Q, "Q", extraX, stageHeight - margin - bigSize, bigSize);
+						addButton(Keyboard.E, "E", extraX, extraY, bigSize);
+						addButton(getBind("kill", Keyboard.R), "Y", resetX, extraY, bigSize);
+						#if MODDING_ALLOWED
+						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
+						#end
+					}
 				}
 		}
 	}
 
-	function addButton(keyCode:Int, text:String, x:Float, y:Float, size:Float):Void {
+	function addButton(keyCode:Int, text:String, x:Float, y:Float, size:Float):VirtualButton {
 		var button:VirtualButton = new VirtualButton(keyCode, text, x, y, size, buttonAlpha);
 		// with the overlay turned off the buttons are invisible but can still be touched
 		button.visible = overlayEnabled;
 		buttons.push(button);
 		addChild(button);
+		return button;
 	}
 
 	// ------------------------------------------------------------------ touch handling
@@ -510,7 +618,24 @@ class MobileInput extends Sprite {
 	function onTouchBegin(event:TouchEvent):Void {
 		var id:Int = event.touchPointID;
 
+		if (mode == TAP) {
+			tapTouches.set(id, true);
+			pressKey(Keyboard.ENTER);
+			return;
+		}
+
 		var button:Null<VirtualButton> = getButtonAt(event.stageX, event.stageY);
+		if (button != null && button.toggle) {
+			// stays held until it is touched again
+			var held:Bool = !button.isPressed();
+			button.setPressed(held);
+			if (held)
+				pressKey(button.keyCode);
+			else
+				releaseKey(button.keyCode);
+			return;
+		}
+
 		if (button != null) {
 			touchButtons.set(id, button);
 			if (button.keyCode == Keyboard.SHIFT)
@@ -562,6 +687,11 @@ class MobileInput extends Sprite {
 
 		speedTouches.remove(id);
 
+		if (tapTouches.exists(id)) {
+			tapTouches.remove(id);
+			releaseKey(Keyboard.ENTER);
+		}
+
 		if (touchButtons.exists(id)) {
 			var button:VirtualButton = touchButtons.get(id);
 			touchButtons.remove(id);
@@ -586,8 +716,14 @@ class MobileInput extends Sprite {
 		for (button in touchButtons)
 			button.setPressed(false);
 
+		for (button in buttons) {
+			if (button.toggle)
+				button.setPressed(false);
+		}
+
 		touchButtons.clear();
 		touchLanes.clear();
+		tapTouches.clear();
 		speedTouches.clear();
 		speedSteps = 0;
 
