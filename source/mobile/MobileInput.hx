@@ -773,7 +773,11 @@ class MobileInput extends Sprite {
 			return;
 
 		var type:String = down ? KeyboardEvent.KEY_DOWN : KeyboardEvent.KEY_UP;
-		Lib.current.stage.dispatchEvent(new KeyboardEvent(type, true, false, 0, code, 0, false, false, false, false));
+		// Flixel treats "charCode 0 + keyCode 80..90" as the F1..F11 keys (a quirk of the native keyboard on desktop),
+		// so a letter pressed with charCode 0 (P Q R S T U V W X Y Z) would never arrive as that letter.
+		// Giving letters their real character code avoids it.
+		var charCode:Int = (code >= 65 && code <= 90) ? code + 32 : 0;
+		Lib.current.stage.dispatchEvent(new KeyboardEvent(type, true, false, charCode, code, 0, false, false, false, false));
 	}
 }
 #end
