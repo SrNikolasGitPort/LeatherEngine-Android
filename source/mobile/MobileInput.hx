@@ -9,6 +9,12 @@ import openfl.Lib;
 import openfl.display.Sprite;
 import openfl.events.Event;
 import openfl.events.KeyboardEvent;
+import openfl.events.TextEvent;
+import lime.system.JNI;
+import flixel.group.FlxGroup.FlxTypedGroup;
+import flixel.group.FlxSpriteGroup.FlxTypedSpriteGroup;
+import flixel.text.FlxInputText;
+import flixel.addons.ui.FlxInputText as LegacyInputText;
 import openfl.events.TouchEvent;
 import openfl.text.TextField;
 import openfl.text.TextFieldAutoSize;
@@ -331,6 +337,9 @@ class MobileInput extends Sprite {
 		stage.addEventListener(TouchEvent.TOUCH_END, instance.onTouchEnd);
 		stage.addEventListener(Event.ENTER_FRAME, instance.onFrame);
 		stage.addEventListener(Event.DEACTIVATE, instance.onDeactivate);
+		// the phone's keyboard types through text events, the legacy text boxes of the editors only understand key events
+		stage.addEventListener(KeyboardEvent.KEY_DOWN, instance.onRealKeyDown, false, 100);
+		stage.addEventListener(TextEvent.TEXT_INPUT, instance.onTextInput);
 
 		// the Android back button / gesture works like ESC
 		lime.app.Application.current.window.onKeyDown.add(instance.onSystemKeyDown);
@@ -364,8 +373,92 @@ class MobileInput extends Sprite {
 
 	// ------------------------------------------------------------------ layout
 
+	// ------------------------------------------------------------------ phone keyboard
+
+	var typing:Bool = false;
+	var legacyTyping:Bool = false;
+	var lastRealCharFrame:Int = -10;
+
+	/**
+	 * True while a text box (of the editors) is waiting for text.
+	 */
+	function findTyping():Bool {
+		var manager = FlxInputText.globalManager;
+		if (manager != null && manager.focus != null) {
+			legacyTyping = false;
+			return true;
+		}
+		legacyTyping = hasLegacyFocus(FlxG.state, 0) || (FlxG.state.subState != null && hasLegacyFocus(FlxG.state.subState, 0));
+		return legacyTyping;
+	}
+
+	function hasLegacyFocus(group:Dynamic, depth:Int):Bool {
+		if (group == null || depth > 8)
+			return false;
+		var members:Array<Dynamic> = null;
+		if (Std.isOfType(group, FlxTypedGroup))
+			members = cast(group, FlxTypedGroup<Dynamic>).members;
+		else if (Std.isOfType(group, FlxTypedSpriteGroup))
+			members = cast(group, FlxTypedSpriteGroup<Dynamic>).group.members;
+		if (members == null)
+			return false;
+		for (m in members) {
+			if (m == null)
+				continue;
+			if (Std.isOfType(m, LegacyInputText)) {
+				if (cast(m, LegacyInputText).hasFocus)
+					return true;
+			} else if (hasLegacyFocus(m, depth + 1))
+				return true;
+		}
+		return false;
+	}
+
+	function updateKeyboard():Void {
+		// looking through every object each frame is wasteful, a few times a second is plenty
+		if (frame % 6 != 0)
+			return;
+
+		var now:Bool = (mode == EDITOR || mode == MENU) && findTyping();
+		if (now == typing)
+			return;
+		typing = now;
+
+		var window = lime.app.Application.current.window;
+		window.textInputEnabled = now;
+		#if android
+		try {
+			var set:Dynamic = JNI.createStaticMethod("com/leather128/funkin/MobileStorage", "setKeyboard", "(Z)V");
+			set(now);
+		} catch (e:Dynamic) {}
+		#end
+
+		// the buttons would only be in the way (and be pressed by accident) while typing
+		visible = !now;
+		if (now)
+			releaseEverything();
+	}
+
+	function onRealKeyDown(e:KeyboardEvent):Void {
+		if (e.charCode != 0)
+			lastRealCharFrame = frame;
+	}
+
+	function onTextInput(e:TextEvent):Void {
+		// Flixel's own text boxes already read the text events
+		if (!legacyTyping || e.text == null || frame - lastRealCharFrame < 3)
+			return;
+		for (i in 0...e.text.length) {
+			var charCode:Int = e.text.charCodeAt(i);
+			var keyCode:Int = FlxKey.fromString(e.text.charAt(i).toUpperCase());
+			Lib.current.stage.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_DOWN, true, false, charCode, keyCode, 0, false, false, false, false));
+			Lib.current.stage.dispatchEvent(new KeyboardEvent(KeyboardEvent.KEY_UP, true, false, charCode, keyCode, 0, false, false, false, false));
+		}
+	}
+
 	function onFrame(_:Event):Void {
 		frame++;
+		updateKeyboard();
 
 		var newMode:Mode = getWantedMode();
 		var newKey:String = '$newMode:${Lib.current.stage.stageWidth}x${Lib.current.stage.stageHeight}';
@@ -864,6 +957,9 @@ class MobileInput extends Sprite {
 
 	function onTouchBegin(event:TouchEvent):Void {
 		var id:Int = event.touchPointID;
+
+		if (typing)
+			return;
 
 		if (mode == TAP) {
 			tapTouches.set(id, true);

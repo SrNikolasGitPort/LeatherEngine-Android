@@ -12,6 +12,7 @@ import android.graphics.Rect;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
 import java.util.Collections;
 import java.io.File;
 import org.libsdl.app.SDLActivity;
@@ -120,6 +121,31 @@ public class MobileStorage {
 	 * draw behind the camera cutout and stops the system back / home gestures from stealing touches on the left and right edge
 	 * (that is what made the first and last lanes of the hitbox fail).
 	 */
+	public static void setKeyboard(final boolean show) {
+		try {
+			final Activity activity = (Activity) context();
+			activity.runOnUiThread(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						View view = activity.getCurrentFocus();
+						if (view == null)
+							view = activity.getWindow().getDecorView();
+						InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+						if (show) {
+							view.requestFocus();
+							imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
+						} else {
+							imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+						}
+					} catch (Throwable e) {
+					}
+				}
+			});
+		} catch (Throwable e) {
+		}
+	}
+
 	public static void enableImmersive() {
 		try {
 			final Activity activity = (Activity) context();
