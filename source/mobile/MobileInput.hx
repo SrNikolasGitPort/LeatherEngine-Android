@@ -379,6 +379,9 @@ class MobileInput extends Sprite {
 			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity:$areaX:$areaWidth:$hideHint:$vSliceStyle';
 		} else if (newMode == MENU || newMode == EDITOR) {
 			newKey += ':' + Type.getClassName(Type.getClass(FlxG.state));
+			// the mod switcher (TAB) opens over the menus and needs the full controls
+			if (FlxG.state.subState != null)
+				newKey += ':' + Type.getClassName(Type.getClass(FlxG.state.subState));
 		}
 
 		if (newKey != layoutKey) {
@@ -725,7 +728,7 @@ class MobileInput extends Sprite {
 					var margin:Float = size * 0.35;
 
 					// the main menu is moved by touch, the only button there is MODS
-					if (FlxG.state is MainMenuState) {
+					if (FlxG.state is MainMenuState && FlxG.state.subState == null) {
 						#if MODDING_ALLOWED
 						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
 						#end

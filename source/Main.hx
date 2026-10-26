@@ -28,6 +28,7 @@ import sys.io.Process;
 import hxgamemode.GamemodeClient;
 #end
 #if mobile
+import mobile.CrashScreen;
 import mobile.MobileInput;
 import mobile.MobileSetupScreen;
 #end
@@ -143,6 +144,8 @@ class Main extends Sprite {
 		#if mobile
 		mobile.MobileSettings.initialize();
 		MobileInput.initialize();
+		// a crash of the last run (the ones that kill the process can't be shown when they happen)
+		CrashScreen.showPending();
 		#end
 
 		// shader coords fix
@@ -190,6 +193,10 @@ class Main extends Sprite {
 		date = StringTools.replace(date, " ", "_");
 		date = StringTools.replace(date, ":", "'");
 
+		#if mobile
+		date = StringTools.replace(date, "'", "-");
+		#end
+
 		for (stackItem in callStack) {
 			switch (stackItem) {
 				case FilePos(s, file, line, column):
@@ -212,13 +219,26 @@ class Main extends Sprite {
 		}
 
 		error += "\nUncaught Error: " + errorData;
-		path = Sys.getCwd() + "crash/" + "crash-" + errorData + '-on-' + date + ".txt";
+
+		// the error text can contain characters that can't be in a file name
+		var safeName:String = ~/[^A-Za-z0-9_.-]+/g.replace(errorData, "_");
+		if (safeName.length > 40)
+			safeName = safeName.substr(0, 40);
+		path = Sys.getCwd() + "crash/" + "crash-" + safeName + '-on-' + date + ".txt";
 
 		if (!FileSystem.exists("./crash/")) {
 			FileSystem.createDirectory("./crash/");
 		}
 
 		File.saveContent(path, error + "\n");
+
+		#if mobile
+		// no dialogs on mobile: the error is shown on the screen with a button that copies the log
+		Sys.println(error);
+		e.preventDefault();
+		CrashScreen.show(error, path);
+		return;
+		#end
 
 		Sys.println(error);
 		Sys.println("Crash dump saved in " + Path.normalize(path));
@@ -266,6 +286,10 @@ class Main extends Sprite {
 			Sys.println(error);
 			Sys.println("Crash dump saved in " + Path.normalize(path));
 
+			#if mobile
+			// the process dies after this, so the screen with the log is shown the next time the engine opens
+			CrashScreen.remember(error, path);
+			#else
 			var crashPath:String = "Crash" #if linux + '.x86_64' #end#if windows + ".exe" #end;
 
 			if (FileSystem.exists("./" + crashPath)) {
@@ -282,6 +306,7 @@ class Main extends Sprite {
 				Sys.println("No crash dialog found! Making a simple alert instead...");
 				FlxG.stage.window.alert(message, "Critical Error!");
 			}
+			#end
 		} catch (e:Dynamic) {
 			Sys.println('Error while handling crash: $e');
 

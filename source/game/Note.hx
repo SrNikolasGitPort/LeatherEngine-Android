@@ -219,14 +219,14 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		else
 			scale.set(lmaoStuff, lmaoStuff);
 
-		// the death note sprite is way bigger than a normal arrow (262px wide against 157px), so it spilled over the notes next to it
-		// and looked glued to / inside them. Bring it down to just a little bigger than a normal arrow.
 		var sizeFix:Float = 1;
+
 		#if mobile
-		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
-			// same size as a normal arrow (the visible part of the sprite is 232px against the 157px of a normal arrow)
-			sizeFix = 0.64;
-			scale.set(lmaoStuff * sizeFix, lmaoStuff * sizeFix);
+		// V-Slice layout: the opponent's notes are small, like his arrows
+		if (PlayState.vSliceLayout && !mustPress && !inEditor) {
+			scale.x *= PlayState.V_SLICE_ENEMY_SCALE;
+			if (!isSustainNote)
+				scale.y *= PlayState.V_SLICE_ENEMY_SCALE;
 		}
 		#end
 
@@ -259,12 +259,17 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		}
 
 		var noteYOffset:Float = Std.parseFloat(PlayState.instance.arrow_Configs.get(arrow_Type)[0]) * lmaoStuff * sizeFix;
+		var downSign:Float = Options.getData("downscroll") ? -1 : 1;
 		#if mobile
-		// instead of the offset made for the oversized sprite, center it on a normal arrow (154px high)
-		if (sizeFix != 1)
-			noteYOffset = ((frameHeight * sizeFix) - 154) / 2 * lmaoStuff;
+		// the death note keeps the original size of the engine, only the offset is fixed
+		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
+			// the art of the sprite is 222px high (starting 8px down) against 154px of a normal arrow, and every note is placed by its top,
+			// so it is lifted until both centers match (the same way with upscroll and downscroll)
+			noteYOffset = ((8 + 222 / 2) - 154 / 2) * lmaoStuff;
+			downSign = 1;
+		}
 		#end
-		offset.y += noteYOffset * (Options.getData("downscroll") ? -1 : 1);
+		offset.y += noteYOffset * downSign;
 
 		shouldHit = PlayState.instance.type_Configs.get(arrow_Type)[0] == "true";
 		hitDamage = Std.parseFloat(PlayState.instance.type_Configs.get(arrow_Type)[1]);

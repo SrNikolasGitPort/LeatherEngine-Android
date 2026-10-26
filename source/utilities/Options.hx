@@ -155,6 +155,14 @@ class Options {
 		}
 	}
 
+	/**
+	 * Changes an option only in memory (it isn't written to the save by this call).
+	 */
+	public static function setTemporary(value:Dynamic, dataKey:String, ?saveKey:String = "main"):Void {
+		if (saves.exists(saveKey))
+			Reflect.setProperty(Reflect.getProperty(saves.get(saveKey), "data"), dataKey, value);
+	}
+
 	public static function fixBinds() {
 		if (getData("binds", "binds") == null)
 			setData(NoteVariables.defaultBinds, "binds", "binds");

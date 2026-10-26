@@ -596,9 +596,28 @@ class PlayState extends MusicBeatState {
 
 	var replay:Replay;
 
+	/**
+	 * Mobile "V-Slice" hitbox style (4K only): the player's arrows at the bottom and the opponent's small ones at the top left.
+	 */
+	public static var vSliceLayout:Bool = false;
+
+	/** Size of the opponent's arrows and notes with the V-Slice layout. */
+	public static inline var V_SLICE_ENEMY_SCALE:Float = 0.4;
+
+	var downscrollBeforeVSlice:Null<Bool> = null;
+
 	override function create() {
 		// set instance because duh
 		instance = this;
+
+		#if mobile
+		vSliceLayout = Options.getData("hitboxStyle") == "V-SLICE" && SONG != null && SONG.keyCount == 4 && SONG.playerKeyCount == 4 && !chartingMode;
+		if (vSliceLayout && !Options.getData("downscroll")) {
+			// the player's arrows are at the bottom, so the notes have to come from the top
+			downscrollBeforeVSlice = false;
+			Options.setTemporary(true, "downscroll");
+		}
+		#end
 		tweenManager = new FlxTweenManager();
 		replay = new Replay();
 
@@ -1253,6 +1272,11 @@ class PlayState extends MusicBeatState {
 			}
 		}
 
+		#if mobile
+		if (vSliceLayout)
+			applyVSliceLayout();
+		#end
+
 		#if MODCHARTING_TOOLS
 		NoteMovement.getDefaultStrumPos(this);
 		#end
@@ -1621,6 +1645,38 @@ class PlayState extends MusicBeatState {
 	 */
 	var noteBG:FlxSprite;
 
+	#if mobile
+	/**
+	 * Places the arrows like the V-Slice mobile controls: big arrows (the ones that are touched) spread along the bottom
+	 * and the opponent's arrows small, in the top left corner.
+	 */
+	function applyVSliceLayout():Void {
+		var count:Int = playerStrums.members.length;
+		if (count != 4 || enemyStrums.members.length != 4)
+			return;
+
+		var spacing:Float = 185;
+		var first:Float = (FlxG.width - spacing * (count - 1)) / 2;
+		var centerY:Float = FlxG.height * 0.83;
+
+		for (i in 0...count) {
+			var strum:StrumNote = playerStrums.members[i];
+			strum.x = first + spacing * i - strum.width / 2;
+			strum.y = centerY - strum.height / 2;
+		}
+
+		var small:Float = 46;
+		for (i in 0...count) {
+			var strum:StrumNote = enemyStrums.members[i];
+			strum.scale.set(strum.scale.x * V_SLICE_ENEMY_SCALE, strum.scale.y * V_SLICE_ENEMY_SCALE);
+			strum.updateHitbox();
+			strum.playAnim("static");
+			strum.x = 145 + small * i - strum.width / 2;
+			strum.y = FlxG.height * 0.1 - strum.height / 2;
+		}
+	}
+	#end
+
 	function generateStaticArrows(pos:Float, ?isPlayer:Bool = false, ?showReminders:Bool = true):Void {
 		call("generateStaticArrows", [pos, isPlayer, showReminders]);
 		var usedKeyCount:Int = isPlayer ? PlayState.SONG.playerKeyCount : PlayState.SONG.keyCount;
@@ -1848,15 +1904,12 @@ class PlayState extends MusicBeatState {
 
 	var fixedUpdateTime:Float = 0.0;
 
-	var lastDirectionAnim:String = "";
-	var lastDirectionTurn:Bool = false;
-
 	/**
 	 * "Camera Tracks Direction": the camera used to be moved before it was placed on the character, so the option did nothing.
 	 * Now the camera is placed again every time the animation of the character it's looking at changes.
 	 */
 	function updateDirectionCamera():Void {
-		if (!Options.getData("cameraTracksDirections") || !generatedMusic || paused || lockedCamera || centerCamera || SONG.notes == null)
+		if (!Options.getData("cameraTracksDirections") || !generatedMusic || paused || lockedCamera || centerCamera || !SONG.moveCamera || SONG.notes == null)
 			return;
 
 		var section = SONG.notes[Std.int(curStep / Conductor.stepsPerSection)];
@@ -1866,13 +1919,6 @@ class PlayState extends MusicBeatState {
 		var bfTurn:Bool = section.mustHitSection;
 		var focus:Character = bfTurn ? boyfriend : dad;
 		var main:Character = focus.getMainCharacter();
-		var anim:String = main.hasAnims() ? main.curAnimName().toLowerCase() : "";
-
-		if (anim == lastDirectionAnim && bfTurn == lastDirectionTurn)
-			return;
-
-		lastDirectionAnim = anim;
-		lastDirectionTurn = bfTurn;
 
 		var midPos:FlxPoint = main.getMidpoint();
 		if (bfTurn) {
@@ -2494,6 +2540,13 @@ class PlayState extends MusicBeatState {
 	}
 
 	override function destroy() {
+		#if mobile
+		if (downscrollBeforeVSlice != null) {
+			Options.setTemporary(downscrollBeforeVSlice, "downscroll");
+			downscrollBeforeVSlice = null;
+		}
+		vSliceLayout = false;
+		#end
 		call("onDestroy", []);
 		closeScripts();
 		if (!chartingMode) {
