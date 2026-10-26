@@ -61,8 +61,7 @@ class MainMenuState extends MusicBeatState {
 			optionShit.push('mods');
 		#end
 
-		// on mobile the tools are always one tap away
-		if (Options.getData("developer") #if mobile || true #end)
+		if (Options.getData("developer"))
 			optionShit.push('toolbox');
 
 		call("buttonsAdded");

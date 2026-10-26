@@ -277,6 +277,15 @@ class MobileInput extends Sprite {
 	var vSliceStyle:Bool = false;
 
 	/**
+	 * V-Slice style: no hitbox columns, the arrows themselves are the buttons. `zones` has one `[left, top, width, height]` (in stage
+	 * coordinates) around every arrow of the player's strum line, they are followed every frame because the strums can move.
+	 */
+	var useZones:Bool = false;
+
+	var zones:Array<Array<Float>> = [];
+	var zoneGlows:Array<Sprite> = [];
+
+	/**
 	 * Where the lanes are: the whole screen, or only the game image (after the black bars).
 	 */
 	var areaX:Float = 0;
@@ -366,6 +375,7 @@ class MobileInput extends Sprite {
 
 		if (newMode == GAME) {
 			laneKeys = getLaneKeys();
+			useZones = vSliceStyle && laneKeys.length == 4;
 			newKey += ':${laneKeys.join(",")}:$hitboxVisible:$hitboxOpacity:$areaX:$areaWidth:$hideHint:$vSliceStyle';
 		} else if (newMode == MENU || newMode == EDITOR) {
 			newKey += ':' + Type.getClassName(Type.getClass(FlxG.state));
@@ -386,6 +396,9 @@ class MobileInput extends Sprite {
 			releaseKey(key);
 			nextTapFrame = frame + 4;
 		}
+
+		if (useZones && mode == GAME)
+			updateZones();
 
 		// light up the lanes that are being held
 		for (i in 0...lanes.length) {
@@ -633,6 +646,11 @@ class MobileInput extends Sprite {
 			removeChild(lane);
 		lanes = [];
 
+		for (glow in zoneGlows)
+			removeChild(glow);
+		zoneGlows = [];
+		zones = [];
+
 		graphics.clear();
 
 		var stageWidth:Float = Lib.current.stage.stageWidth;
@@ -680,9 +698,20 @@ class MobileInput extends Sprite {
 
 				var laneWidth:Float = areaWidth / laneKeys.length;
 				for (i in 0...laneKeys.length) {
-					// the V-Slice style is only for 4 keys, any other key count keeps the classic lanes
-					var lane:HitboxLane = new HitboxLane(areaX + laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity, hideHint,
-						vSliceStyle && laneKeys.length == 4);
+					if (useZones) {
+						// V-Slice style: only a soft glow on the arrow that is being touched
+						var glow:Sprite = new Sprite();
+						glow.mouseEnabled = false;
+						glow.graphics.beginFill(laneColors[i], 1);
+						glow.graphics.drawCircle(0, 0, 100);
+						glow.graphics.endFill();
+						glow.visible = false;
+						zoneGlows.push(glow);
+						addChild(glow);
+						continue;
+					}
+
+					var lane:HitboxLane = new HitboxLane(areaX + laneWidth * i, laneWidth, stageHeight, laneColors[i], hitboxOpacity, hideHint);
 					lane.visible = hitboxVisible;
 					lanes.push(lane);
 					addChild(lane);
@@ -694,6 +723,14 @@ class MobileInput extends Sprite {
 				{
 					var size:Float = Math.min(stageWidth, stageHeight) * 0.14;
 					var margin:Float = size * 0.35;
+
+					// the main menu is moved by touch, the only button there is MODS
+					if (FlxG.state is MainMenuState) {
+						#if MODDING_ALLOWED
+						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
+						#end
+						return;
+					}
 
 					// D-pad (bottom left)
 					var dpadX:Float = margin;
@@ -748,6 +785,66 @@ class MobileInput extends Sprite {
 
 	// ------------------------------------------------------------------ touch handling
 
+	/**
+	 * Finds where the arrows of the player's strum line are on the screen and builds the touch area of each one.
+	 */
+	function updateZones():Void {
+		var strums = @:privateAccess PlayState.playerStrums;
+		var cam = @:privateAccess PlayState.instance?.camHUD;
+		if (strums == null || cam == null || strums.members.length < 4)
+			return;
+
+		var scaleX:Float = FlxG.scaleMode.scale.x;
+		var scaleY:Float = FlxG.scaleMode.scale.y;
+		var centers:Array<Float> = [];
+		var middles:Array<Float> = [];
+		var heights:Array<Float> = [];
+
+		for (i in 0...4) {
+			var strum = strums.members[i];
+			if (strum == null)
+				return;
+			var position = strum.getScreenPosition(cam);
+			centers.push(FlxG.game.x + (position.x + strum.width / 2) * scaleX);
+			middles.push(FlxG.game.y + (position.y + strum.height / 2) * scaleY);
+			heights.push(strum.height * scaleY);
+			position.put();
+		}
+
+		var stageHeight:Float = Lib.current.stage.stageHeight;
+		var newZones:Array<Array<Float>> = [];
+
+		for (i in 0...4) {
+			var spacing:Float = i < 3 ? centers[i + 1] - centers[i] : centers[i] - centers[i - 1];
+			var left:Float = i == 0 ? centers[i] - spacing / 2 : (centers[i] + centers[i - 1]) / 2;
+			var right:Float = i == 3 ? centers[i] + spacing / 2 : (centers[i] + centers[i + 1]) / 2;
+			// a generous area around the arrow, a bit more below it (where the thumb lands)
+			var top:Float = Math.max(0, middles[i] - heights[i] * 1.0);
+			var bottom:Float = Math.min(stageHeight, middles[i] + heights[i] * 1.4);
+			newZones.push([left, top, right - left, bottom - top]);
+		}
+		zones = newZones;
+
+		for (i in 0...zoneGlows.length) {
+			var glow:Sprite = zoneGlows[i];
+			var holds:Int = keyHolds.exists(laneKeys[i]) ? keyHolds.get(laneKeys[i]) : 0;
+			glow.visible = holds > 0 && hitboxVisible && !hideHint;
+			glow.alpha = Math.min(0.6, hitboxOpacity * 2.5);
+			glow.x = centers[i];
+			glow.y = middles[i];
+			glow.scaleX = glow.scaleY = heights[i] * 0.55 / 100;
+		}
+	}
+
+	function getZoneAt(x:Float, y:Float):Int {
+		for (i in 0...zones.length) {
+			var zone:Array<Float> = zones[i];
+			if (x >= zone[0] && x <= zone[0] + zone[2] && y >= zone[1] && y <= zone[1] + zone[3])
+				return i;
+		}
+		return -1;
+	}
+
 	function getButtonAt(x:Float, y:Float):Null<VirtualButton> {
 		for (button in buttons) {
 			if (button.hits(x, y))
@@ -792,7 +889,13 @@ class MobileInput extends Sprite {
 			return;
 		}
 
-		if (mode == GAME) {
+		if (mode == GAME && useZones) {
+			// V-Slice style: only a touch on an arrow counts
+			var zone:Int = getZoneAt(event.stageX, event.stageY);
+			touchLanes.set(id, zone);
+			if (zone >= 0)
+				pressKey(laneKeys[zone]);
+		} else if (mode == GAME) {
 			var lane:Int = getLaneAt(event.stageX);
 			touchLanes.set(id, lane);
 			pressKey(laneKeys[lane]);
@@ -820,13 +923,15 @@ class MobileInput extends Sprite {
 			return;
 
 		var previous:Int = touchLanes.get(id);
-		var current:Int = getLaneAt(event.stageX);
+		var current:Int = useZones ? getZoneAt(event.stageX, event.stageY) : getLaneAt(event.stageX);
 		if (previous == current)
 			return;
 
-		releaseKey(laneKeys[previous]);
+		if (previous >= 0)
+			releaseKey(laneKeys[previous]);
 		touchLanes.set(id, current);
-		pressKey(laneKeys[current]);
+		if (current >= 0)
+			pressKey(laneKeys[current]);
 	}
 
 	function onTouchEnd(event:TouchEvent):Void {
@@ -849,7 +954,7 @@ class MobileInput extends Sprite {
 		if (touchLanes.exists(id)) {
 			var lane:Int = touchLanes.get(id);
 			touchLanes.remove(id);
-			if (lane < laneKeys.length)
+			if (lane >= 0 && lane < laneKeys.length)
 				releaseKey(laneKeys[lane]);
 		}
 	}
