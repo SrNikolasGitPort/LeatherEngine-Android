@@ -170,22 +170,38 @@ jobs:
           cp "$(find export -name '*.apk' | head -1)" "$apk"
 
           cat > release_notes.md <<'NOTES'
-          Leather Engine 1.1.9 para Android (arm64, Android 9 ou mais novo).
+          Leather Engine 1.1.9 para Android (arm64, Android 9 ou mais novo). Versão Beta: pode ter bugs.
 
-          **Como instalar**
+          ## Resumo da Update
+
+          **Controles de toque**
+          - Menu principal por toque (só o botão MODS); no TAB (Mods) os controles completos aparecem.
+          - Barra de teclas nos editores mostrando o que cada botão faz, e teclado do celular ao tocar nas caixas de texto.
+          - Hitbox: opções de área (tela toda ou dentro da imagem), estilo CLASSIC ou V-SLICE (4K), esconder dica, deslizar entre as lanes e teclas extras (6K a 21K) funcionando.
+          - Freeplay (X ouvir, Y resetar score, C velocidade), Story Mode, tela de resultado (toque = Enter) e game over só com A/B.
+          - Botão voltar do Android funciona como ESC.
+
+          **Jogo**
+          - Camera Tracks Direction corrigido (oponente e player).
+          - Nota Death com tamanho original e offset alinhado (jogo e chart editor).
+          - Menu de Opções abre mais rápido (páginas carregadas sob demanda).
+
+          **Scripts, shaders e mods**
+          - Lua ativado no Android.
+          - Shaders de PC (GLSL 130/330, precisão, round/trunc/sinh/cosh/tanh) e shaders GLSL ES adaptados; shader que não compila mostra a imagem normal em vez de tela preta.
+          - Erros em scripts Lua e eventos vão para o log em vez de fechar o jogo.
+
+          **Crashes**
+          - Tela de erro com botão COPIAR LOG; os logs ficam em `.Leather1.1.9/crash/`.
+
+          ## Como instalar
           1. Baixe o `.apk` abaixo e instale (permita "instalar apps desconhecidos" se o Android pedir).
-          2. Na primeira abertura, permita o acesso aos arquivos. A engine cria a pasta `.Leather1.1.9` no armazenamento interno e copia os arquivos do jogo (cerca de 340 MB, só demora na primeira vez).
+          2. Na primeira abertura, permita o acesso aos arquivos. A engine cria a pasta `.Leather1.1.9` e copia os arquivos do jogo (cerca de 340 MB, só demora na primeira vez).
           3. Coloque seus mods em `.Leather1.1.9/mods/`.
 
-          **O que tem**
-          - Controles de toque: barra de teclas nos editores (Chart Editor etc.), botões do Story Mode, X (ouvir) e Y (resetar score) no Freeplay, tela de resultado sem botões (toque = Enter), botões Y/N no aviso de luzes, nenhum botão no Title, D-pad + A/B + MODS no menu, botão C no Freeplay (segure e deslize para mudar a velocidade) e hitbox por lane (cores das setas, qualquer quantidade de teclas, dá para deslizar entre as lanes).
-          - Options > Mobile Options: hitbox visível e opacidade, fullscreen (preenche a tela sem bordas pretas) e pasta da engine (EXTERNAL, DATA, MEDIA, OBB).
-          - Mods com HScript.
-
-          **Limitações**
-          - Lua, vídeos de cutscene e Discord RPC não estão disponíveis no Android.
-          - Versão de teste: pode ter bugs. Se o app fechar, o log fica em `.Leather1.1.9/crash/`.
-          - A chave de assinatura é gerada a cada build. Para instalar uma versão nova, desinstale a anterior antes.
+          ## Limitações
+          - Vídeos de cutscene e Discord RPC não estão disponíveis no Android.
+          - A chave de assinatura é gerada a cada build: para instalar uma versão nova, desinstale a anterior antes.
           NOTES
           sed -i 's/^          //' release_notes.md
 
@@ -194,6 +210,6 @@ jobs:
 
           gh release create "$TAG" "$apk" \
             --target "$GITHUB_SHA" \
-            --title "Leather Engine Android $TAG" \
+            --title "Leather Engine 1.1.9 Beta Mobile Port" \
             --notes-file release_notes.md \
             --prerelease
