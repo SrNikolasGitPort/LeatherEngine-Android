@@ -1807,17 +1807,11 @@ class ChartingState extends MusicBeatState {
 			note.y = Math.floor(getYfromStrum((daStrumTime - sectionStartTime())) + Std.parseFloat(PlayState.instance.arrow_Configs.get(daType)[3]));
 
 			#if mobile
-			// the death note sprite is bigger than the others, draw it the same size as a normal note and centered on its square of the grid
 			if (daType == "death" && note.frameWidth >= 240) {
-				// the drawing (not the whole frame, it has empty space around) is as big as a square of the grid, and its center is the
-				// center of the square, exactly like the other notes (no offset from the arrow config, that is what made it look late)
-				var artHeight:Float = note.frame.sourceSize.y - note.frame.offset.y;
-				var factor:Float = GRID_SIZE / artHeight;
-				note.setGraphicSize(0, note.frameHeight * factor);
-				note.updateHitbox();
-				var artCenter:Float = (note.frame.offset.y + note.frame.sourceSize.y) / 2 * factor;
+				// original size of the chart editor, only the offset is changed: it is centered on its square of the grid (the offset of the
+				// arrow config left it too high, so it looked early)
 				note.x = Math.floor((daNoteInfo + 1) * GRID_SIZE) + (GRID_SIZE - note.width) / 2;
-				note.y = Math.floor(getYfromStrum((daStrumTime - sectionStartTime()))) + GRID_SIZE / 2 - artCenter;
+				note.y = Math.floor(getYfromStrum((daStrumTime - sectionStartTime()))) + (GRID_SIZE - note.height) / 2;
 			}
 			#end
 			note.antialiasing = uiSettings[3] == "true";

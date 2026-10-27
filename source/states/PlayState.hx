@@ -606,6 +606,47 @@ class PlayState extends MusicBeatState {
 
 	var downscrollBeforeVSlice:Null<Bool> = null;
 
+	#if mobile
+	var shaderSlowTime:Float = 0;
+	var shadersTurnedOff:Bool = false;
+
+	/**
+	 * Some shaders are too heavy for a phone and the game turns into a slideshow. If the game stays very slow for a few seconds
+	 * while the cameras have shaders, they are turned off for the rest of the song (and a message says so).
+	 */
+	function guardShaders(elapsed:Float):Void {
+		if (shadersTurnedOff || paused || !startedCountdown || !Options.getData("shaders"))
+			return;
+
+		// (Flixel never reports more than 0.1s per frame)
+		shaderSlowTime = elapsed > 0.09 ? shaderSlowTime + elapsed : Math.max(0, shaderSlowTime - elapsed * 2);
+		if (shaderSlowTime < 4)
+			return;
+
+		var found:Bool = false;
+		for (cam in FlxG.cameras.list) {
+			if (cam != null && cam.filters != null && cam.filters.length > 0) {
+				found = true;
+				cam.filters = null;
+			}
+		}
+
+		shaderSlowTime = 0;
+		if (!found)
+			return;
+
+		shadersTurnedOff = true;
+		Options.setTemporary(false, "shaders");
+
+		var notice:FlxText = new FlxText(0, FlxG.height * 0.12, FlxG.width, "The shaders of this song were too heavy for this device,\nthey were turned off.", 26);
+		notice.setFormat(Paths.font("vcr.ttf"), 26, FlxColor.WHITE, CENTER, OUTLINE, FlxColor.BLACK);
+		notice.cameras = [camHUD];
+		notice.scrollFactor.set();
+		add(notice);
+		FlxTween.tween(notice, {alpha: 0}, 1, {startDelay: 5, onComplete: (_) -> notice.destroy()});
+	}
+	#end
+
 	override function create() {
 		// set instance because duh
 		instance = this;
@@ -2109,6 +2150,10 @@ class PlayState extends MusicBeatState {
 
 		updateDirectionCamera();
 
+		#if mobile
+		guardShaders(elapsed);
+		#end
+
 		// RESET = Quick Game Over Screen
 		if ((Options.getData("resetButton") && !switchedStates && controls.RESET) || (Options.getData("noHit") && misses > 0))
 			health = minHealth;
@@ -2548,6 +2593,10 @@ class PlayState extends MusicBeatState {
 			downscrollBeforeVSlice = null;
 		}
 		vSliceLayout = false;
+		if (shadersTurnedOff) {
+			Options.setTemporary(true, "shaders");
+			shadersTurnedOff = false;
+		}
 		#end
 		call("onDestroy", []);
 		closeScripts();
@@ -3906,10 +3955,15 @@ class PlayState extends MusicBeatState {
 		}
 		#end
 
-		EventHandler.processEvent(this, event);
+		// a broken event (a missing value, a character that doesn't exist...) must not close the game
+		try {
+			EventHandler.processEvent(this, event);
 
-		//                name       pos      param 1   param 2
-		call("onEvent", [event[0], event[1], event[2], event[3]]);
+			//                name       pos      param 1   param 2
+			call("onEvent", [event[0], event[1], event[2], event[3]]);
+		} catch (e:Dynamic) {
+			trace('Event "${event[0]}" failed: ${Std.string(e)}', ERROR);
+		}
 	}
 
 	function calculateAccuracy() {

@@ -11,6 +11,54 @@ import shaders.ShaderSanitizer;
  * Basically just FlxRuntimeShader but it has tween support
  */
 class CustomShader extends FlxRuntimeShader {
+	/**
+	 * True if the phone's GPU refused the shader. It then draws the image unchanged instead of a black screen.
+	 */
+	public var failed(default, null):Bool = false;
+
+	static inline var FALLBACK_VERTEX:String = "
+		attribute float openfl_Alpha;
+		attribute vec4 openfl_ColorMultiplier;
+		attribute vec4 openfl_ColorOffset;
+		attribute vec4 openfl_Position;
+		attribute vec2 openfl_TextureCoord;
+		varying float openfl_Alphav;
+		varying vec2 openfl_TextureCoordv;
+		uniform mat4 openfl_Matrix;
+		void main(void) {
+			openfl_Alphav = openfl_Alpha;
+			openfl_TextureCoordv = openfl_TextureCoord;
+			gl_Position = openfl_Matrix * openfl_Position;
+		}";
+
+	static inline var FALLBACK_FRAGMENT:String = "
+		varying float openfl_Alphav;
+		varying vec2 openfl_TextureCoordv;
+		uniform sampler2D bitmap;
+		void main(void) {
+			gl_FragColor = texture2D(bitmap, openfl_TextureCoordv) * openfl_Alphav;
+		}";
+
+	/**
+	 * A shader that doesn't compile (or link) leaves a broken program that draws everything black. When that happens
+	 * the shader is replaced with one that only draws the image, so the song stays playable and the reason is in the log.
+	 */
+	@:noCompletion
+	override private function __createGLProgram(vertexSource:String, fragmentSource:String):openfl.display3D._internal.GLProgram {
+		var program = super.__createGLProgram(vertexSource, fragmentSource);
+
+		try {
+			var gl = @:privateAccess __context.gl;
+			if (!failed && gl.getProgramParameter(program, gl.LINK_STATUS) == 0) {
+				failed = true;
+				trace("A shader couldn't be used by this device, it was replaced by one that doesn't change the image.", ERROR);
+				return super.__createGLProgram(FALLBACK_VERTEX, FALLBACK_FRAGMENT);
+			}
+		} catch (e:Dynamic) {}
+
+		return program;
+	}
+
 	override public function new(?fragmentSource:String, ?vertexSource:String) {
 		#if mobile
 		var defaults:Array<ShaderSanitizer.UniformDefault> = [];

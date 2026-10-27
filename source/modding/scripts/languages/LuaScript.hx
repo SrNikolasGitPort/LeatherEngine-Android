@@ -180,7 +180,29 @@ class LuaScript extends Script {
 	 * @param func Function to use
 	 */
 	inline public function setFunction(name:String, func:Any):Void {
-		Lua_helper.add_callback(lua, name, func);
+		// an error inside of a Haxe function called from Lua would go through the Lua stack and close the whole game,
+		// so every function is wrapped: the error is shown in the log and the script goes on
+		Lua_helper.add_callback(lua, name, Reflect.makeVarArgs(function(args:Array<Dynamic>):Dynamic {
+			try {
+				return Reflect.callMethod(null, func, args);
+			} catch (e:Dynamic) {
+				reportError('$name()', e);
+				return null;
+			}
+		}));
+	}
+
+	static var reportedErrors:Map<String, Bool> = [];
+
+	/**
+	 * Shows a script error in the log (only the first time, a script that fails every frame would fill the log and make the game slow).
+	 */
+	static function reportError(where:String, error:Dynamic):Void {
+		var message:String = 'Lua script: error in $where: ${Std.string(error)}';
+		if (reportedErrors.exists(message))
+			return;
+		reportedErrors.set(message, true);
+		trace(message, ERROR);
 	}
 
 	public function new(path:String, executeOn:ExecuteOn = BOTH) {
@@ -3758,11 +3780,18 @@ class LuaScript extends Script {
 
 		Lua.getglobal(lua, func);
 
+		// most scripts only have a few of the functions (update, stepHit...), calling something that doesn't exist every frame is a waste
+		if (Lua.type(lua, -1) != Lua.LUA_TFUNCTION) {
+			Lua.pop(lua, 1);
+			return false;
+		}
+
 		for (arg in arguments) {
 			Convert.toLua(lua, arg);
 		}
 
 		if (Lua.pcall(lua, arguments.length, 1, 0) != Lua.LUA_OK) {
+			reportError(func, Lua.tostring(lua, -1));
 			Lua.pop(lua, 1);
 			return false;
 		} else {

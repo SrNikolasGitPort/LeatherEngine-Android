@@ -20,11 +20,6 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 	 */
 	public var strumTime:Float = 0;
 
-	/**
-	 * Size of the death note against the size it has in the sprite sheet, it makes it as big as a normal arrow.
-	 */
-	public static inline var DEATH_NOTE_SCALE:Float = 0.685;
-
 	public var mustPress:Bool = false;
 	public var noteData:Int = 0;
 	public var canBeHit:Bool = false;
@@ -227,14 +222,6 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		var sizeFix:Float = 1;
 
 		#if mobile
-		// the death note is drawn the same size as a normal arrow (its art is 232px wide against the 157px of a normal one)
-		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
-			sizeFix = DEATH_NOTE_SCALE;
-			scale.set(lmaoStuff * sizeFix, lmaoStuff * sizeFix);
-		}
-		#end
-
-		#if mobile
 		// V-Slice layout: the opponent's notes are small, like his arrows
 		if (PlayState.vSliceLayout && !mustPress && !inEditor) {
 			scale.x *= PlayState.V_SLICE_ENEMY_SCALE;
@@ -276,12 +263,11 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		#if mobile
 		// the death note keeps the original size of the engine, only the offset is fixed
 		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
-			// every note is placed by its top, but the art of the death sprite is much taller than the 154px of a normal arrow (and starts a few px
-			// down inside of its frame), so it is lifted until the centers of both match (the same way with upscroll and downscroll).
-			// The numbers come from the frame that is being shown, each direction has a slightly different one.
+			// the death note keeps its original size; only its offset is changed: every note is placed by its top, so the taller death sprite
+			// has to be lifted by half of the extra height (the original offset lifted it too much, so it came early) - the same for upscroll and downscroll.
 			updateHitbox();
 			var artCenter:Float = frame != null ? (frame.offset.y + frame.sourceSize.y) / 2 : 119;
-			noteYOffset = (artCenter * sizeFix - 154 / 2) * lmaoStuff;
+			noteYOffset = (artCenter - 154 / 2) * lmaoStuff;
 			downSign = 1;
 		}
 		#end
