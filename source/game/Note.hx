@@ -20,6 +20,11 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 	 */
 	public var strumTime:Float = 0;
 
+	/**
+	 * Size of the death note against the size it has in the sprite sheet, it makes it as big as a normal arrow.
+	 */
+	public static inline var DEATH_NOTE_SCALE:Float = 0.685;
+
 	public var mustPress:Bool = false;
 	public var noteData:Int = 0;
 	public var canBeHit:Bool = false;
@@ -222,6 +227,14 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		var sizeFix:Float = 1;
 
 		#if mobile
+		// the death note is drawn the same size as a normal arrow (its art is 232px wide against the 157px of a normal one)
+		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
+			sizeFix = DEATH_NOTE_SCALE;
+			scale.set(lmaoStuff * sizeFix, lmaoStuff * sizeFix);
+		}
+		#end
+
+		#if mobile
 		// V-Slice layout: the opponent's notes are small, like his arrows
 		if (PlayState.vSliceLayout && !mustPress && !inEditor) {
 			scale.x *= PlayState.V_SLICE_ENEMY_SCALE;
@@ -268,7 +281,7 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 			// The numbers come from the frame that is being shown, each direction has a slightly different one.
 			updateHitbox();
 			var artCenter:Float = frame != null ? (frame.offset.y + frame.sourceSize.y) / 2 : 119;
-			noteYOffset = (artCenter - 154 / 2) * lmaoStuff;
+			noteYOffset = (artCenter * sizeFix - 154 / 2) * lmaoStuff;
 			downSign = 1;
 		}
 		#end
