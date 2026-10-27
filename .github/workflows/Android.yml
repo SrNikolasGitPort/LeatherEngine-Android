@@ -170,7 +170,7 @@ jobs:
           cp "$(find export -name '*.apk' | head -1)" "$apk"
 
           cat > release_notes.md <<'NOTES'
-          Leather Engine 1.1.9 para Android (arm64, Android 9 ou mais novo). Versão Beta: pode ter bugs.
+          Leather Engine 1.1.9 para Android (arm64, Android 7.0 ou mais novo). Versão Beta: pode ter bugs.
 
           ## Resumo da Update
 
