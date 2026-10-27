@@ -1975,10 +1975,19 @@ class PlayState extends MusicBeatState {
 		trackSingDirection(focus);
 	}
 
+	var lastSingAnim:Map<Character, String> = [];
+	var lastSingTime:Map<Character, Float> = [];
+
 	function trackSingDirection(char:Character):Void {
 		if (Options.getData("cameraTracksDirections") && char.getMainCharacter().hasAnims()) {
 			// animations with a suffix ("singLEFT-alt", "singUPalt"...) count too, the misses don't
 			var anim:String = char.getMainCharacter().curAnimName().toLowerCase();
+
+			// the animation the character is playing says where to look, but some characters / mods change it right away (or use other
+			// names), so the animation that the note asked for (remembered for a moment) is used when the current one doesn't say it
+			if (!anim.startsWith("sing") && lastSingAnim.exists(char) && Conductor.songPosition - lastSingTime.get(char) < 350)
+				anim = lastSingAnim.get(char);
+
 			if (anim.startsWith("sing") && !anim.contains("miss")) {
 				if (anim.contains("left"))
 					camFollow.x -= 50;
@@ -2608,6 +2617,11 @@ class PlayState extends MusicBeatState {
 	}
 
 	function playAnimOnNote(char:Character, note:Note, singAnim:String, force:Bool = true) {
+		if (char != null && singAnim != null) {
+			lastSingAnim.set(char, singAnim.toLowerCase());
+			lastSingTime.set(char, Conductor.songPosition);
+		}
+
 		if (!char.isCharacterGroup)
 			char?.playAnim(singAnim, force);
 		else {
@@ -2633,29 +2647,31 @@ class PlayState extends MusicBeatState {
 			case 'dad':
 				var midPos:FlxPoint = dad.getMainCharacter().getMidpoint();
 
-				trackSingDirection(dad);
-
 				midPos.x += stage.p2_Cam_Offset.x;
 				midPos.y += stage.p2_Cam_Offset.y;
 
-				if (!paused && !lockedCamera)
+				if (!paused && !lockedCamera) {
 					camFollow.setPosition(midPos.x + 150 + dad.getMainCharacter().cameraOffset[0], midPos.y - 100 + dad.getMainCharacter().cameraOffset[1]);
+					// (it used to be moved before the camera was placed, so the position that was just set erased it)
+					trackSingDirection(dad);
+				}
 
 				call("playerTwoTurn", []);
 			case 'bf':
 				var midPos:FlxPoint = boyfriend.getMainCharacter().getMidpoint();
 
-				trackSingDirection(boyfriend);
 				midPos.x += stage.p1_Cam_Offset.x;
 				midPos.y += stage.p1_Cam_Offset.y;
 
-				if (!paused && !lockedCamera)
+				if (!paused && !lockedCamera) {
 					camFollow.setPosition(midPos.x
 						- 100
 						+ boyfriend.getMainCharacter().cameraOffset[0],
 						midPos.y
 						- 100
 						+ boyfriend.getMainCharacter().cameraOffset[1]);
+					trackSingDirection(boyfriend);
+				}
 
 				call("playerOneTurn", []);
 		}
