@@ -136,15 +136,29 @@ private class VirtualButton extends Sprite {
 		return pressed;
 	}
 
+	var idleLayer:Sprite;
+	var litLayer:Sprite;
+
 	public function setPressed(value:Bool):Void {
 		if (pressed == value)
 			return;
 		pressed = value;
-		redraw();
+		litLayer.visible = value;
+		idleLayer.visible = !value;
 	}
 
+	// both looks are drawn once and only switched when touched
 	function redraw():Void {
-		graphics.clear();
+		idleLayer = new Sprite();
+		litLayer = new Sprite();
+		drawLayer(idleLayer.graphics, false);
+		drawLayer(litLayer.graphics, true);
+		litLayer.visible = false;
+		addChildAt(idleLayer, 0);
+		addChildAt(litLayer, 1);
+	}
+
+	function drawLayer(graphics:openfl.display.Graphics, pressed:Bool):Void {
 		graphics.lineStyle(3, 0xFFFFFF, pressed ? 0.9 : baseAlpha + 0.2);
 		graphics.beginFill(pressed ? 0x5FCBFF : 0x000000, pressed ? 0.55 : baseAlpha);
 		graphics.drawRoundRect(0, 0, buttonWidth, size, size * 0.3, size * 0.3);
@@ -188,19 +202,32 @@ private class HitboxLane extends Sprite {
 		redraw();
 	}
 
+	// Both looks are drawn once. Drawing the vector graphics again every time a lane is touched or let go (a whole screen tall column)
+	// took long enough to be felt as a delay when tapping.
+	var idleLayer:Sprite;
+	var litLayer:Sprite;
+
 	public function setPressed(value:Bool):Void {
 		if (pressed == value)
 			return;
 		pressed = value;
-		redraw();
+		litLayer.visible = value;
+		idleLayer.visible = !value && !hideIdle;
 	}
 
 	function redraw():Void {
-		graphics.clear();
+		idleLayer = new Sprite();
+		litLayer = new Sprite();
+		idleLayer.mouseEnabled = litLayer.mouseEnabled = false;
+		drawLayer(idleLayer.graphics, false);
+		drawLayer(litLayer.graphics, true);
+		idleLayer.visible = !hideIdle;
+		litLayer.visible = false;
+		addChild(idleLayer);
+		addChild(litLayer);
+	}
 
-		if (hideIdle && !pressed)
-			return;
-
+	function drawLayer(graphics:openfl.display.Graphics, pressed:Bool):Void {
 		var fill:Float = pressed ? Math.min(1, opacity * 2.4) : opacity;
 
 		// the column itself
@@ -460,6 +487,15 @@ class MobileInput extends Sprite {
 		frame++;
 		updateKeyboard();
 
+		// working out the layout builds strings and reads the options, which made garbage (and little hiccups) on every frame
+		// of a song. The touch handling itself doesn't depend on it, so a few frames between the checks change nothing.
+		if (frame % 4 == 0 || layoutKey == "")
+			updateLayout();
+
+		updateRest();
+	}
+
+	function updateLayout():Void {
 		var newMode:Mode = getWantedMode();
 		var newKey:String = '$newMode:${Lib.current.stage.stageWidth}x${Lib.current.stage.stageHeight}';
 
@@ -483,7 +519,9 @@ class MobileInput extends Sprite {
 			layoutKey = newKey;
 			buildLayout();
 		}
+	}
 
+	function updateRest():Void {
 		// every step of a slide on the "C" button taps LEFT / RIGHT (with SHIFT held that changes the speed)
 		if (speedSteps != 0 && frame >= nextTapFrame) {
 			var key:Int = speedSteps > 0 ? Keyboard.RIGHT : Keyboard.LEFT;
@@ -1105,8 +1143,13 @@ class MobileInput extends Sprite {
 		var holds:Int = keyHolds.exists(code) ? keyHolds.get(code) : 0;
 		keyHolds.set(code, holds + 1);
 
-		// it's being held again so a release that was waiting is cancelled
-		pendingReleases.remove(code);
+		// a release was still waiting (the key was let go less than two frames ago): it is done now, otherwise the game would still
+		// see the key as held and the new tap would be lost
+		if (pendingReleases.remove(code)) {
+			dispatchKey(code, false);
+			holds = 0;
+			keyHolds.set(code, 1);
+		}
 
 		if (holds == 0) {
 			keyPressFrame.set(code, frame);
