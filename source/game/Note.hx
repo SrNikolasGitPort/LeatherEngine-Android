@@ -263,9 +263,12 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 		#if mobile
 		// the death note keeps the original size of the engine, only the offset is fixed
 		if (!isSustainNote && arrow_Type == "death" && frameWidth >= 240) {
-			// the art of the sprite is 222px high (starting 8px down) against 154px of a normal arrow, and every note is placed by its top,
-			// so it is lifted until both centers match (the same way with upscroll and downscroll)
-			noteYOffset = ((8 + 222 / 2) - 154 / 2) * lmaoStuff;
+			// every note is placed by its top, but the art of the death sprite is much taller than the 154px of a normal arrow (and starts a few px
+			// down inside of its frame), so it is lifted until the centers of both match (the same way with upscroll and downscroll).
+			// The numbers come from the frame that is being shown, each direction has a slightly different one.
+			updateHitbox();
+			var artCenter:Float = frame != null ? (frame.offset.y + frame.sourceSize.y) / 2 : 119;
+			noteYOffset = (artCenter - 154 / 2) * lmaoStuff;
 			downSign = 1;
 		}
 		#end

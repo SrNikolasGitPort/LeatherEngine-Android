@@ -1936,14 +1936,16 @@ class PlayState extends MusicBeatState {
 
 	function trackSingDirection(char:Character):Void {
 		if (Options.getData("cameraTracksDirections") && char.getMainCharacter().hasAnims()) {
-			switch (char.getMainCharacter().curAnimName().toLowerCase()) {
-				case "singleft":
+			// animations with a suffix ("singLEFT-alt", "singUPalt"...) count too, the misses don't
+			var anim:String = char.getMainCharacter().curAnimName().toLowerCase();
+			if (anim.startsWith("sing") && !anim.contains("miss")) {
+				if (anim.contains("left"))
 					camFollow.x -= 50;
-				case "singright":
+				else if (anim.contains("right"))
 					camFollow.x += 50;
-				case "singup":
+				else if (anim.contains("up"))
 					camFollow.y -= 50;
-				case "singdown":
+				else if (anim.contains("down"))
 					camFollow.y += 50;
 			}
 		}

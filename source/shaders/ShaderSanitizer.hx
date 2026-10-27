@@ -22,7 +22,10 @@ typedef UniformDefault = {
  * - global variables initialized with something that is not a constant (`vec2 uv = openfl_TextureCoordv;`), the assignment is moved to the start of `main`,
  * - `const` variables initialized with something that is not a constant, the `const` is dropped,
  * - `for` loops with a bound that isn't a constant (`i < amount`), they get a fixed maximum and a `break`,
- * - `textureSize(bitmap, 0)`.
+ * - `textureSize(bitmap, 0)`,
+ * - shaders written for newer desktop GLSL (`#version 130 / 330`): `in` / `out` / `texture()` become `varying` / `gl_FragColor` / `texture2D()`,
+ * - a `precision mediump float;` written inside of the shader (the phone would calculate with less precision than the PC and the effect would look different),
+ * - functions that exist on PC but not in ES: `round`, `trunc`, `sinh`, `cosh`, `tanh`.
  *
  * Nothing in this class depends on OpenFL / Flixel, it only works on the text of the shader.
  */
@@ -41,7 +44,20 @@ class ShaderSanitizer {
 		source = StringTools.replace(source, "\r\n", "\n");
 
 		// #version
+		var modern:Bool = false;
+		var versionLine:EReg = new EReg("^[ \\t]*#version[ \\t]+(\\d+)", "m");
+		if (versionLine.match(source))
+			modern = Std.parseInt(versionLine.matched(1)) >= 130;
 		source = source.split("\n").filter(line -> !StringTools.startsWith(StringTools.ltrim(line), "#version")).join("\n");
+
+		if (modern)
+			source = fromModernGlsl(source);
+
+		// a precision written in the shader replaces the one OpenFL puts before it, keep the full precision the PC had
+		source = new EReg("^[ \\t]*precision[ \\t]+(?:mediump|lowp)[ \\t]+float[ \\t]*;", "gm")
+			.replace(source, "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif");
+
+		source = addMissingFunctions(source);
 
 		// square matrices written the long way
 		source = new EReg("\\bmat([234])x\\1\\b", "g").replace(source, "mat$1");
@@ -88,6 +104,56 @@ class ShaderSanitizer {
 	}
 
 	/**
+	 * `in` / `out` / `texture()` of GLSL 130+ written the way GLSL ES 1.00 wants.
+	 */
+	static function fromModernGlsl(source:String):String {
+		source = new EReg("\\btexture\\s*\\(", "g").replace(source, "texture2D(");
+
+		// `out vec4 fragColor;` is gl_FragColor
+		var output:EReg = new EReg("^[ \\t]*(?:layout\\s*\\([^)]*\\)\\s*)?out[ \\t]+(?:(?:highp|mediump|lowp)[ \\t]+)?vec4[ \\t]+(\\w+)[ \\t]*;", "m");
+		if (output.match(source)) {
+			var name:String = output.matched(1);
+			source = output.replace(source, "#define " + name + " gl_FragColor");
+		}
+
+		// `in vec2 coord;` is a varying
+		source = new EReg("^([ \\t]*)(?:layout\\s*\\([^)]*\\)\\s*)?in([ \\t]+(?:(?:highp|mediump|lowp)[ \\t]+)?(?:" + TYPES + ")[ \\t]+\\w+)", "gm")
+			.replace(source, "$1varying$2");
+		return source;
+	}
+
+	/**
+	 * Math functions that the desktop has and OpenGL ES 1.00 doesn't. Only the ones the shader uses (and doesn't write itself) are added.
+	 */
+	static function addMissingFunctions(source:String):String {
+		var code:String = "";
+
+		function missing(name:String):Bool {
+			return new EReg("\\b" + name + "\\s*\\(", "").match(source) && !new EReg("\\b(?:float|vec[234])\\s+" + name + "\\s*\\(", "").match(source);
+		}
+
+		function overloads(name:String, body:String):String {
+			var result:String = "";
+			for (type in ["float", "vec2", "vec3", "vec4"])
+				result += type + " " + name + "(" + type + " x){" + StringTools.replace(body, "T", type) + "}\n";
+			return result;
+		}
+
+		if (missing("round"))
+			code += overloads("round", "return floor(x + T(0.5));");
+		if (missing("trunc"))
+			code += overloads("trunc", "return sign(x) * floor(abs(x));");
+		if (missing("sinh"))
+			code += overloads("sinh", "return (exp(x) - exp(-x)) * T(0.5);");
+		if (missing("cosh"))
+			code += overloads("cosh", "return (exp(x) + exp(-x)) * T(0.5);");
+		if (missing("tanh"))
+			code += overloads("tanh", "T e = exp(T(2.0) * clamp(x, T(-20.0), T(20.0))); return (e - T(1.0)) / (e + T(1.0));");
+
+		return code == "" ? source : code + source;
+	}
+
+	/**
 	 * Vertex shaders only need the `#version` line out of the way.
 	 */
 	public static function vertex(source:Null<String>):Null<String> {
@@ -95,7 +161,19 @@ class ShaderSanitizer {
 			return null;
 
 		source = StringTools.replace(source, "\r\n", "\n");
-		return source.split("\n").filter(line -> !StringTools.startsWith(StringTools.ltrim(line), "#version")).join("\n");
+		var modern:Bool = false;
+		var versionLine:EReg = new EReg("^[ \\t]*#version[ \\t]+(\\d+)", "m");
+		if (versionLine.match(source))
+			modern = Std.parseInt(versionLine.matched(1)) >= 130;
+		source = source.split("\n").filter(line -> !StringTools.startsWith(StringTools.ltrim(line), "#version")).join("\n");
+
+		if (modern) {
+			// `in` is an attribute and `out` a varying in the vertex shader
+			var typed:String = "(?:(?:highp|mediump|lowp)[ \\t]+)?(?:" + TYPES + ")[ \\t]+\\w+";
+			source = new EReg("^([ \\t]*)(?:layout\\s*\\([^)]*\\)\\s*)?in([ \\t]+" + typed + ")", "gm").replace(source, "$1attribute$2");
+			source = new EReg("^([ \\t]*)out([ \\t]+" + typed + ")", "gm").replace(source, "$1varying$2");
+		}
+		return source;
 	}
 
 	// ------------------------------------------------------------------ globals

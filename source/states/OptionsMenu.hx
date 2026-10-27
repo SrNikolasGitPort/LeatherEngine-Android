@@ -18,8 +18,11 @@ class OptionsMenu extends MusicBeatState {
 
 	public var inMenu = false;
 
-	public var pages:Map<String, Array<Option>> = [
-		"Categories" => [
+	/**
+	 * Every page is only built when it is opened (building the ~115 options at once, each one with its text and checkbox, made the menu slow to open).
+	 */
+	public var pageBuilders:Map<String, () -> Array<Option>> = [
+		"Categories" => () -> [
 			new PageOption("Gameplay", "Gameplay", "Change gameplay-related options,\nsuch as downscroll and ghost tapping."),
 			new PageOption("Graphics", "Graphics", "Change graphical-related options,\nsuch as max FPS."),
 			new PageOption("Misc", "Misc", "Change miscellaneous options that\ndon't fit in the other categories."),
@@ -32,7 +35,7 @@ class OptionsMenu extends MusicBeatState {
 			new PageOption("Developer Options", "Developer Options", "Change options for developing mods.")
 		],
 		#if mobile
-		"Mobile Options" => [
+		"Mobile Options" => () -> [
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new BoolOption("Hitbox Visible", "hitboxVisible", "When not toggled, the colored lanes you tap\nduring songs are hidden but still work."),
 			new StepperSaveOption("Hitbox Opacity", 5, 80, "hitboxOpacity", 5, "How visible the colored lanes are.\nUse left and right to change it. (in %)"),
@@ -48,7 +51,7 @@ class OptionsMenu extends MusicBeatState {
 				"Where the engine folder with the mods is.\nEXTERNAL: .Leather1.1.9 | DATA: Android/data | MEDIA: Android/media | OBB: Android/obb\nRestart the game to apply it.")
 		],
 		#end
-		"Gameplay" => [
+		"Gameplay" => () -> [
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new GameSubStateOption("Binds", substates.ControlMenuSubstate, "Change key bindings."),
 			new BoolOption("Key Bind Reminders", "extraKeyReminders", "Should key binding reminders show up\nwhen playing a non-4-key song."),
@@ -64,7 +67,7 @@ class OptionsMenu extends MusicBeatState {
 			new GameSubStateOption("Custom Scroll Speed", substates.ScrollSpeedMenu, "Change the value of the custom scroll speed."),
 			new StringSaveOption("Hitsound", CoolUtil.coolTextFile(Paths.txt("hitsoundList")), "hitsound", "Change the hitsound used when hitting a note.")
 		],
-		"Graphics" => [
+		"Graphics" => () -> [
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new PageOption("Note Options", "Note Options", "Change note-related options."),
 			new PageOption("Info Display", "Info Display", "Change optiosn related to the info display.\n(FPS counter, memory display, etc)."),
@@ -76,7 +79,7 @@ class OptionsMenu extends MusicBeatState {
 			new PageOption("Screen Effects", "Screen Effects", "Toggle screen effect options, such as camera zooming and shaders."),
 			new GameStateOption("Change Hud Settings", ui.HUDAdjustment, "Change the position of hud objects, such as the ratings.")
 		],
-		"Misc" => [
+		"Misc" => () -> [
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new BoolOption("Friday Night Title Music", "nightMusic", "When toggled, the music for playing\non a friday night will always play."),
 			new BoolOption("Freeplay Music", "freeplayMusic", "When toggled, instrumentals for freeplay songs will auto play."),
@@ -100,7 +103,7 @@ class OptionsMenu extends MusicBeatState {
 			new BoolOption("Dinnerbone Mode", "dinnerbone", "Dinnerbone mode."),
 			new GameSubStateOption("Import Old Scores", substates.ImportHighscoresSubstate, "Import scores from legacy leather engine versions.")
 		],
-		"Optimizations" => [
+		"Optimizations" => () -> [
 			new PageOption("Back", "Graphics", "Go back to the graphics menu."),
 			new BoolOption("Antialiasing", "antialiasing",
 				"When toggled, antialiasing will be enabled,\nmaking sprites smoother at the cost of some performance.\n(Should only really matter on really low-end devices)"),
@@ -125,7 +128,7 @@ class OptionsMenu extends MusicBeatState {
 				"When toggled, modchart sustains will use a more\noptimized renderer,at the cost of stretchy sustains."),
 			#end
 		],
-		"Info Display" => [
+		"Info Display" => () -> [
 			new PageOption("Back", "Graphics", "Go back to the graphics menu."),
 			new DisplayFontOption("Display Font", [
 				"_sans",
@@ -138,14 +141,14 @@ class OptionsMenu extends MusicBeatState {
 			new BoolOption("Version Display", "versionDisplay", "Should the engine version be shown?"),
 			new BoolOption("Commit Hash", "showCommitHash", "Should the hash for the current commit be shown?")
 		],
-		"Judgements" => [
+		"Judgements" => () -> [
 			new PageOption("Back", "Gameplay", "Go back to the gameplay menu."),
 			new GameSubStateOption("Timings", substates.JudgementMenu, "Edit the timings for ratings."),
 			new StringSaveOption("Rating Mode", ["psych", "simple", "complex"], "ratingType", "Change how ratings are calculated."),
 			new BoolOption("Marvelous Ratings", "marvelousRatings", "When toggled, marvelous ratings will be shown,\nelse, sick will be the max rating."),
 			new BoolOption("Show Rating Count", "sideRatings", "Should ratings be shown on the side of the screen?")
 		],
-		"Input Options" => [
+		"Input Options" => () -> [
 			new PageOption("Back", "Gameplay", "Go back to the gameplay menu."),
 			new StringSaveOption("Input Mode", ["standard", "rhythm"], "inputSystem", "Change how inputs work."),
 			new BoolOption("Anti Mash", "antiMash", "When toggled, mashing keys will punish the player."),
@@ -155,7 +158,7 @@ class OptionsMenu extends MusicBeatState {
 			new BoolOption("Death On Miss", "noHit", "When toggled, getting a miss will cause a death.\n(useful for when trying to FC a song.)"),
 			new BoolOption("Reset Button", "resetButton", "When toggled, enables a keybind for causing an instant death.")
 		],
-		"Note Options" => [
+		"Note Options" => () -> [
 			new PageOption("Back", "Graphics", "Go back to the graphics menu."),
 			new GameSubStateOption("Note BG Alpha", substates.NoteBGAlphaMenu, "Change the alpha of the note lane underlay."),
 			new BoolOption("Enemy Note Glow", "enemyStrumsGlow", "When toggled, enemy strums will\nlight up when the enemy hits a note."),
@@ -168,7 +171,7 @@ class OptionsMenu extends MusicBeatState {
 			new BoolOption("Color Quantization", "colorQuantization", "When toggled, note colors will be changed depending on the beat."),
 			new GameSubStateOption("UI Skin", substates.UISkinSelect, "Change the UI skin for notes and menus.")
 		],
-		"Screen Effects" => [
+		"Screen Effects" => () -> [
 			new PageOption("Back", "Graphics", "Go back to the graphics menu."),
 			new BoolOption("Camera Tracks Direction", "cameraTracksDirections", "When toggled, the camera will follow the direction of the note."),
 			new BoolOption("Camera Bounce", "cameraZooms", "When toggled, the game and hud will zoom in on beat."),
@@ -176,7 +179,7 @@ class OptionsMenu extends MusicBeatState {
 			new BoolOption("Screen Shake", "screenShakes", "Toggles screen shake effects."),
 			new BoolOption("Shaders", "shaders", "Toggles shaders.")
 		],
-		"Developer Options" => [
+		"Developer Options" => () -> [
 			new PageOption("Back", "Categories", "Go back to the main menu."),
 			new BoolOption("Developer Mode", "developer", "When toggled, enables developer tools.\n(traced lines display, toolbox, etc)"),
 			new DeveloperOption("Show Traced Lines", "showTracedLines",
@@ -189,9 +192,17 @@ class OptionsMenu extends MusicBeatState {
 				"Change how long the game will wait\nbefore creating a chart backup.\n(in minutes.)"),
 		],
 		#if MODDING_ALLOWED
-		"Mod Options" => [new PageOption("Back", "Categories", "Go back to the main menu."),]
+		"Mod Options" => () -> [new PageOption("Back", "Categories", "Go back to the main menu."),]
 		#end
 	];
+
+	public var pages:Map<String, Array<Option>> = [];
+
+	public function getPage(name:String):Array<Option> {
+		if (!pages.exists(name))
+			pages.set(name, pageBuilders.get(name)());
+		return pages.get(name);
+	}
 
 	public var page:FlxTypedGroup<Option> = new FlxTypedGroup<Option>();
 	public var pageName:String = "Categories";
@@ -217,7 +228,7 @@ class OptionsMenu extends MusicBeatState {
 	#if MODDING_ALLOWED
 	private function addModOptions() {
 		for (mod in modding.ModList.getActiveMods(modding.PolymodHandler.metadataArrays)) {
-			pages.get("Mod Options").push(new PageOption(mod, mod, modding.ModList.modMetadatas.get(mod)?.description ?? "no description"));
+			getPage("Mod Options").push(new PageOption(mod, mod, modding.ModList.modMetadatas.get(mod)?.description ?? "no description"));
 			pages.set(mod, [new PageOption("Back", "Mod Options", "Go back to mod options.")]);
 			if (sys.FileSystem.exists('mods/$mod/data/options.json')) {
 				var modOptions:modding.ModOptions = cast Json.parse(sys.io.File.getContent('mods/$mod/data/options.json'));
@@ -290,7 +301,7 @@ class OptionsMenu extends MusicBeatState {
 		var curPage:FlxTypedGroup<Option> = instance.page;
 		curPage.clear();
 
-		for (x in instance.pages.get(loadedPageName).copy()) {
+		for (x in instance.getPage(loadedPageName).copy()) {
 			if (x != null) {
 				curPage.add(x);
 			}
