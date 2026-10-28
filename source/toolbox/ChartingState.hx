@@ -1456,15 +1456,25 @@ class ChartingState extends MusicBeatState {
 			if (FlxG.keys.pressed.SHIFT)
 				shiftThing = 4;
 			if ((controls.RIGHT_P) && !control) {
-				if (sectionStartTime(curSection + shiftThing) >= (!_song.needsVoices ? FlxG.sound.music.length : Math.min(FlxG.sound.music.length,
-					vocals.maxLength))) {
-					changeSection(0);
-				} else {
-					changeSection(curSection + shiftThing);
-				}
+				// the end of the song: the voices only count when they really have a length (a missing / not yet loaded track reports 0,
+				// and that sent every press of "next section" back to the very start of the chart)
+				var songEnd:Float = FlxG.sound.music.length;
+				if (_song.needsVoices && vocals != null && vocals.maxLength > 0)
+					songEnd = Math.min(songEnd, vocals.maxLength);
+
+				var target:Int = curSection + shiftThing;
+
+				// sections that don't exist yet are created while they still fit in the song
+				while (_song.notes.length <= target && sectionStartTime(_song.notes.length) < songEnd)
+					addSection();
+
+				if (_song.notes[target] != null && sectionStartTime(target) < songEnd)
+					changeSection(target);
+				else if (curSection < _song.notes.length - 1)
+					changeSection(_song.notes.length - 1); // goes as far as it can instead of jumping back to the beginning
 			}
 			if ((controls.LEFT_P) && !control) {
-				changeSection(curSection - shiftThing);
+				changeSection(Std.int(Math.max(0, curSection - shiftThing)));
 			}
 
 			if (controls.RIGHT_P && control) {
@@ -2169,6 +2179,22 @@ class ChartingState extends MusicBeatState {
 
 		var data:String = Json.stringify(json);
 
+		#if mobile
+		// there is no save dialog on a phone: the chart goes to the engine folder and to its "Save" folder
+		if ((data != null) && (data.length > 0)) {
+			var fileName:String = _song.song.toLowerCase();
+
+			if (difficulty.toLowerCase() != 'normal')
+				fileName = fileName + '-' + difficulty.toLowerCase();
+
+			if (saveEvents)
+				fileName = "events";
+
+			saveToEngineFolders(data.trim(), fileName);
+		}
+		return;
+		#end
+
 		if ((data != null) && (data.length > 0)) {
 			fileDialogue = new FileReference();
 			fileDialogue.addEventListener(Event.COMPLETE, onSaveComplete);
@@ -2186,6 +2212,35 @@ class ChartingState extends MusicBeatState {
 			fileDialogue.save(data.trim(), gamingName + ".json");
 		}
 	}
+
+	#if mobile
+	function saveToEngineFolders(data:String, fileName:String):Void {
+		var saved:Array<String> = [];
+
+		// the working directory is the engine folder
+		for (folder in ["./", "./Save/"]) {
+			try {
+				if (!sys.FileSystem.exists(folder))
+					sys.FileSystem.createDirectory(folder);
+				var path:String = folder + fileName + ".json";
+				sys.io.File.saveContent(path, data);
+				saved.push(haxe.io.Path.normalize(Sys.getCwd() + path));
+			} catch (e:Dynamic) {
+				trace('Could not save the chart in $folder: $e', ERROR);
+			}
+		}
+
+		var toast:FlxText = new FlxText(0, FlxG.height * 0.85, FlxG.width,
+			saved.length > 0 ? "Chart saved:\n" + saved.join("\n") : "The chart could not be saved (check the storage permission).", 14);
+		toast.alignment = CENTER;
+		toast.color = saved.length > 0 ? 0xFF9BFF9B : 0xFFFF6060;
+		toast.borderStyle = OUTLINE;
+		toast.borderColor = 0xFF000000;
+		toast.scrollFactor.set();
+		add(toast);
+		flixel.tweens.FlxTween.tween(toast, {alpha: 0}, 1, {startDelay: 4, onComplete: (_) -> toast.destroy()});
+	}
+	#end
 
 	function onSaveComplete(_):Void {
 		fileDialogue.removeEventListener(Event.COMPLETE, onSaveComplete);

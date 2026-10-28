@@ -92,9 +92,9 @@
 
 		<!-- Java helper used to find the storage folders and ask for storage access -->
 		<java path="source/mobile/java" />
-		<!-- 64 bit only: the engine is built with BIT_64 and armv7 would double the build time -->
+		<!-- both 64 bit (arm64) and 32 bit (armv7) phones: the APK carries a copy of the engine for each -->
 		<architecture name="arm64" />
-		<architecture exclude="armv7" />
+		<architecture name="armv7" />
 	</section>
 
 	<!-- Path Settings. -->

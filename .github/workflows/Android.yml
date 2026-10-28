@@ -135,7 +135,7 @@ jobs:
       - name: Build APK
         run: |
           set -o pipefail
-          haxelib run lime build Project.xml android -release -arm64 \
+          haxelib run lime build Project.xml android -release -arm64 -armv7 \
             -certificate-path="$RUNNER_TEMP/leather.keystore" \
             -certificate-password=leatherengine \
             -certificate-alias=leather \
@@ -170,7 +170,7 @@ jobs:
           cp "$(find export -name '*.apk' | head -1)" "$apk"
 
           cat > release_notes.md <<'NOTES'
-          Leather Engine 1.1.9 para Android (arm64, Android 7.0 ou mais novo). Versão Beta: pode ter bugs.
+          Leather Engine 1.1.9 para Android (arm64 e armv7 / 32 bits, Android 7.0 ou mais novo). Versão Beta: pode ter bugs.
 
           ## Resumo da Update
 
