@@ -167,6 +167,105 @@ private class VirtualButton extends Sprite {
 }
 
 /**
+ * The D-pad of the menus: one round pad split into four directions. It is a single touch area, so the thumb can rest on it and slide
+ * from one direction to another without lifting (the four separate buttons it replaces lost the touch at every edge).
+ */
+private class DPad extends Sprite {
+	public static final KEYS:Array<Int> = [Keyboard.UP, Keyboard.RIGHT, Keyboard.DOWN, Keyboard.LEFT];
+
+	public var radius(default, null):Float;
+	public var centerX(default, null):Float;
+	public var centerY(default, null):Float;
+
+	var layers:Array<Sprite> = [];
+	var current:Int = -1;
+
+	public function new(centerX:Float, centerY:Float, radius:Float, alpha:Float) {
+		super();
+		this.radius = radius;
+		this.centerX = centerX;
+		this.centerY = centerY;
+		mouseEnabled = false;
+		mouseChildren = false;
+		x = centerX;
+		y = centerY;
+
+		// the pad itself
+		graphics.lineStyle(3, 0xFFFFFF, alpha + 0.2);
+		graphics.beginFill(0x000000, alpha);
+		graphics.drawCircle(0, 0, radius);
+		graphics.endFill();
+		graphics.lineStyle(2, 0xFFFFFF, alpha + 0.1);
+		graphics.moveTo(-radius * 0.7, -radius * 0.7);
+		graphics.lineTo(radius * 0.7, radius * 0.7);
+		graphics.moveTo(radius * 0.7, -radius * 0.7);
+		graphics.lineTo(-radius * 0.7, radius * 0.7);
+
+		// one highlight per direction, drawn once and only shown / hidden afterwards
+		for (i in 0...4) {
+			var layer:Sprite = new Sprite();
+			var a0:Float = (i * 90 - 135) * Math.PI / 180;
+			layer.graphics.beginFill(0x5FCBFF, 0.5);
+			layer.graphics.moveTo(0, 0);
+			layer.graphics.lineTo(Math.cos(a0) * radius, Math.sin(a0) * radius);
+			for (s in 1...13) {
+				var a:Float = a0 + s * (Math.PI / 2) / 12;
+				layer.graphics.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+			}
+			layer.graphics.lineTo(0, 0);
+			layer.graphics.endFill();
+			layer.visible = false;
+			layers.push(layer);
+			addChild(layer);
+		}
+
+		// the arrows
+		var marks:Array<String> = ["▲", "▶", "▼", "◀"];
+		var marksX:Array<Float> = [0, 1, 0, -1];
+		var marksY:Array<Float> = [-1, 0, 1, 0];
+		for (i in 0...4) {
+			var text:TextField = new TextField();
+			text.selectable = false;
+			text.mouseEnabled = false;
+			text.defaultTextFormat = new TextFormat("_sans", Std.int(radius * 0.4), 0xFFFFFF, true, null, null, null, null, TextFormatAlign.CENTER);
+			text.text = marks[i];
+			text.width = radius * 0.7;
+			text.height = radius * 0.7;
+			text.x = marksX[i] * radius * 0.58 - text.width / 2;
+			text.y = marksY[i] * radius * 0.58 - text.height * 0.5 + 2;
+			addChild(text);
+		}
+	}
+
+	/**
+	 * Direction (0 up, 1 right, 2 down, 3 left) under a point, `-1` outside of the pad or in its middle.
+	 */
+	public function directionAt(stageX:Float, stageY:Float):Int {
+		var dx:Float = stageX - centerX;
+		var dy:Float = stageY - centerY;
+		var distance:Float = Math.sqrt(dx * dx + dy * dy);
+
+		// the touch area is bigger than what is drawn, a thumb never hits exactly
+		if (distance > radius * 1.25 || distance < radius * 0.12)
+			return -1;
+
+		if (Math.abs(dx) > Math.abs(dy))
+			return dx > 0 ? 1 : 3;
+		return dy > 0 ? 2 : 0;
+	}
+
+	public function setDirection(direction:Int):Void {
+		if (direction == current)
+			return;
+		if (current >= 0)
+			layers[current].visible = false;
+		current = direction;
+		if (current >= 0)
+			layers[current].visible = true;
+	}
+}
+
+/**
  * One lane of the hitbox: a tall transparent column in the color of the arrow, it lights up while it's touched.
  */
 private class HitboxLane extends Sprite {
@@ -329,6 +428,10 @@ class MobileInput extends Sprite {
 	 * Which button / lane each finger is currently holding.
 	 */
 	var touchButtons:Map<Int, VirtualButton> = new Map();
+
+	var dpad:Null<DPad> = null;
+	var dpadTouch:Int = -1;
+	var dpadDirection:Int = -1;
 
 	var touchLanes:Map<Int, Int> = new Map();
 
@@ -776,6 +879,10 @@ class MobileInput extends Sprite {
 			removeChild(button);
 		buttons = [];
 
+		if (dpad != null)
+			removeChild(dpad);
+		dpad = null;
+
 		for (lane in lanes)
 			removeChild(lane);
 		lanes = [];
@@ -866,13 +973,11 @@ class MobileInput extends Sprite {
 						return;
 					}
 
-					// D-pad (bottom left)
-					var dpadX:Float = margin;
-					var dpadY:Float = stageHeight - margin - size * 3;
-					addButton(Keyboard.UP, "▲", dpadX + size, dpadY, size);
-					addButton(Keyboard.LEFT, "◀", dpadX, dpadY + size, size);
-					addButton(Keyboard.RIGHT, "▶", dpadX + size * 2, dpadY + size, size);
-					addButton(Keyboard.DOWN, "▼", dpadX + size, dpadY + size * 2, size);
+					// D-pad (bottom left): a single round pad
+					var padRadius:Float = size * 1.5;
+					dpad = new DPad(margin + padRadius, stageHeight - margin - padRadius, padRadius, buttonAlpha);
+					dpad.visible = overlayEnabled;
+					addChild(dpad);
 
 					// accept / back (bottom right)
 					var bigSize:Float = size * 1.15;
@@ -1005,6 +1110,17 @@ class MobileInput extends Sprite {
 			return;
 		}
 
+		if (dpad != null && dpadTouch < 0) {
+			var direction:Int = dpad.directionAt(event.stageX, event.stageY);
+			if (direction >= 0) {
+				dpadTouch = id;
+				dpadDirection = direction;
+				dpad.setDirection(direction);
+				pressKey(DPad.KEYS[direction]);
+				return;
+			}
+		}
+
 		var button:Null<VirtualButton> = getButtonAt(event.stageX, event.stageY);
 		if (button != null && button.toggle) {
 			// stays held until it is touched again
@@ -1042,6 +1158,20 @@ class MobileInput extends Sprite {
 	function onTouchMove(event:TouchEvent):Void {
 		var id:Int = event.touchPointID;
 
+		if (id == dpadTouch && dpad != null) {
+			// sliding to another direction changes the key without lifting the finger
+			var direction:Int = dpad.directionAt(event.stageX, event.stageY);
+			if (direction != dpadDirection) {
+				if (dpadDirection >= 0)
+					releaseKey(DPad.KEYS[dpadDirection]);
+				dpadDirection = direction;
+				dpad.setDirection(direction);
+				if (direction >= 0)
+					pressKey(DPad.KEYS[direction]);
+			}
+			return;
+		}
+
 		if (speedTouches.exists(id)) {
 			var step:Float = Lib.current.stage.stageWidth * 0.03;
 			var moved:Float = event.stageX - speedTouches.get(id);
@@ -1075,6 +1205,15 @@ class MobileInput extends Sprite {
 		var id:Int = event.touchPointID;
 
 		speedTouches.remove(id);
+
+		if (id == dpadTouch) {
+			dpadTouch = -1;
+			if (dpadDirection >= 0)
+				releaseKey(DPad.KEYS[dpadDirection]);
+			dpadDirection = -1;
+			if (dpad != null)
+				dpad.setDirection(-1);
+		}
 
 		if (tapTouches.exists(id)) {
 			tapTouches.remove(id);
@@ -1121,6 +1260,10 @@ class MobileInput extends Sprite {
 		}
 
 		touchButtons.clear();
+		dpadTouch = -1;
+		dpadDirection = -1;
+		if (dpad != null)
+			dpad.setDirection(-1);
 		touchLanes.clear();
 		tapTouches.clear();
 		speedTouches.clear();
