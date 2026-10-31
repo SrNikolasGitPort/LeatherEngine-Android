@@ -142,6 +142,16 @@ class Main extends Sprite {
 		addChild(display);
 
 		#if mobile
+		// the camera cutout and the rounded corners of the screen hid the FPS / memory text, it is kept away from the edges
+		var placeDisplay:Void->Void = () -> {
+			display.x = Math.max(56, Lib.current.stage.stageWidth * 0.035);
+			display.y = Math.max(18, Lib.current.stage.stageHeight * 0.025);
+		};
+		placeDisplay();
+		Lib.current.stage.addEventListener(openfl.events.Event.RESIZE, (_) -> placeDisplay());
+		#end
+
+		#if mobile
 		mobile.MobileSettings.initialize();
 		MobileInput.initialize();
 		// a crash of the last run (the ones that kill the process can't be shown when they happen)

@@ -372,15 +372,29 @@ class OptionsMenu extends MusicBeatState {
 		descriptionBackground.setPosition(descriptionText.x - 10, descriptionText.y - 10);
 		descriptionBackground.setGraphicSize(descriptionText.width + 20, descriptionText.height + 25);
 		descriptionBackground.updateHitbox();
+		var developer:Bool = Options.getData("developer") == true;
 		for (x in page.members) {
-			if (x.alphabetText.targetY != 0) {
-				x.alpha = 0.6;
-			} else {
-				x.alpha = 1;
+			var target:Float = x.alphabetText.targetY;
+
+			// the options that are far from the selected one can't be seen: they don't need to be updated or drawn, they are just placed
+			// where they will be (every option is a group with one sprite per letter, the whole page used to be updated every frame)
+			var far:Bool = Math.abs(target) > 7;
+			if (far) {
+				if (x.active || x.visible) {
+					x.alphabetText.y = (flixel.math.FlxMath.remapToRange(target, 0, 1, 0, 1.3) * x.alphabetText.yMult) + (FlxG.height * 0.48) + x.alphabetText.yAdd;
+					x.alphabetText.x = (target * 20) + 90 + x.alphabetText.xAdd;
+				}
+				x.active = x.visible = false;
+				continue;
 			}
-			if ((x is DeveloperOption || x is StepperSaveDeveloperOption) && !Options.getData("developer")) {
-				x.alpha *= 0.5;
-			}
+			x.active = x.visible = true;
+
+			// only changes the alpha when it's different, setting it goes through every letter of the option
+			var alpha:Float = target != 0 ? 0.6 : 1;
+			if ((x is DeveloperOption || x is StepperSaveDeveloperOption) && !developer)
+				alpha *= 0.5;
+			if (x.alpha != alpha)
+				x.alpha = alpha;
 		}
 	}
 }

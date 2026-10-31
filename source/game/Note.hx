@@ -43,6 +43,27 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 	public var sustainScaleY:Float = 1;
 
 	public var xOffset:Float = 0;
+
+	var positionKeyText:String = null;
+	var keyData:Int = -1;
+	var keyType:String = null;
+	var keySustain:Bool = false;
+
+	/**
+	 * `[noteData, arrow_Type, isSustainNote]` as text, used by the game to remember where this kind of note goes.
+	 * Building that text for every note on every frame made a lot of garbage for the phone to clean up, so it's kept until one of the values changes.
+	 */
+	public var positionKey(get, never):String;
+
+	function get_positionKey():String {
+		if (positionKeyText == null || keyData != noteData || keyType != arrow_Type || keySustain != isSustainNote) {
+			keyData = noteData;
+			keyType = arrow_Type;
+			keySustain = isSustainNote;
+			positionKeyText = Std.string([noteData, arrow_Type, isSustainNote]);
+		}
+		return positionKeyText;
+	}
 	public var yOffset:Float = 0;
 
 	public var rawNoteData:Int = 0;

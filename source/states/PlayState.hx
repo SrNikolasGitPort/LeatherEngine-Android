@@ -2326,7 +2326,7 @@ class PlayState extends MusicBeatState {
 				if (note != null && coolStrum != null) {
 					if (note.mustPress && note != null) {
 						var coolStrum:StrumNote = playerStrums.members[Math.floor(Math.abs(note.noteData))];
-						var arrayVal:String = Std.string([note.noteData, note.arrow_Type, note.isSustainNote]);
+						var arrayVal:String = note.positionKey;
 
 						if (coolStrum != null)
 							note.visible = coolStrum.visible;
@@ -2377,7 +2377,7 @@ class PlayState extends MusicBeatState {
 						}
 					} else if (!note?.wasGoodHit) {
 						var coolStrum:StrumNote = enemyStrums.members[Math.floor(Math.abs(note.noteData))];
-						var arrayVal:String = Std.string([note.noteData, note.arrow_Type, note.isSustainNote]);
+						var arrayVal:String = note.positionKey;
 
 						if (coolStrum != null && note != null)
 							note.visible = coolStrum.visible;
