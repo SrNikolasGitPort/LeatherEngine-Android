@@ -1909,12 +1909,47 @@ class PlayState extends MusicBeatState {
 	 * Now the camera is placed again every time the animation of the character it's looking at changes.
 	 */
 	function updateDirectionCamera():Void {
-		if (!Options.getData("cameraTracksDirections") || !generatedMusic || paused || lockedCamera || centerCamera || !SONG.moveCamera || SONG.notes == null)
+		if (!Options.getData("cameraTracksDirections") || !generatedMusic || paused || lockedCamera || centerCamera || SONG.notes == null)
 			return;
 
 		var section = SONG.notes[Std.int(curStep / Conductor.stepsPerSection)];
 		if (section == null)
 			return;
+
+		if (!SONG.moveCamera) {
+			// the engine doesn't place the camera by sections in this chart (base game / V-Slice charts: scripts and events do it), so it
+			// can't be placed again here: the direction is added on top of wherever the camera is looking, and taken off before the next one
+			var target:Character = section.mustHitSection ? boyfriend : dad;
+			var offsetX:Float = 0;
+			var offsetY:Float = 0;
+			var animName:String = target.getMainCharacter().hasAnims() ? target.getMainCharacter().curAnimName().toLowerCase() : "";
+			if (!animName.startsWith("sing") || animName.contains("miss"))
+				animName = "";
+			if (animName == "" && lastSingAnim.exists(target) && Conductor.songPosition - lastSingTime.get(target) < 350)
+				animName = lastSingAnim.get(target);
+
+			if (animName.startsWith("sing") && !animName.contains("miss")) {
+				if (animName.contains("left"))
+					offsetX = -50;
+				else if (animName.contains("right"))
+					offsetX = 50;
+				else if (animName.contains("up"))
+					offsetY = -50;
+				else if (animName.contains("down"))
+					offsetY = 50;
+			}
+
+			// nobody moved the camera since the last frame: its base position is what is there minus what was added
+			var stillMine:Bool = camFollow.x == directionAppliedX && camFollow.y == directionAppliedY;
+			var baseX:Float = stillMine ? camFollow.x - directionOffsetX : camFollow.x;
+			var baseY:Float = stillMine ? camFollow.y - directionOffsetY : camFollow.y;
+			camFollow.setPosition(baseX + offsetX, baseY + offsetY);
+			directionAppliedX = camFollow.x;
+			directionAppliedY = camFollow.y;
+			directionOffsetX = offsetX;
+			directionOffsetY = offsetY;
+			return;
+		}
 
 		var bfTurn:Bool = section.mustHitSection;
 		var focus:Character = bfTurn ? boyfriend : dad;
@@ -1934,6 +1969,10 @@ class PlayState extends MusicBeatState {
 		trackSingDirection(focus);
 	}
 
+	var directionAppliedX:Float = Math.NaN;
+	var directionAppliedY:Float = Math.NaN;
+	var directionOffsetX:Float = 0;
+	var directionOffsetY:Float = 0;
 	var lastSingAnim:Map<Character, String> = [];
 	var lastSingTime:Map<Character, Float> = [];
 

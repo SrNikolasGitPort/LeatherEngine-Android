@@ -158,10 +158,37 @@ private class VirtualButton extends Sprite {
 		addChildAt(litLayer, 1);
 	}
 
+	/**
+	 * A, B and the other main buttons have a color of their own so they are easy to tell apart.
+	 */
+	function accent():Int {
+		return switch (keyCode) {
+			case Keyboard.ENTER: 0x4CD964;
+			case Keyboard.ESCAPE: 0xFF5A5F;
+			case Keyboard.TAB: 0xB388FF;
+			default: 0x5FCBFF;
+		}
+	}
+
 	function drawLayer(graphics:openfl.display.Graphics, pressed:Bool):Void {
-		graphics.lineStyle(3, 0xFFFFFF, pressed ? 0.9 : baseAlpha + 0.2);
-		graphics.beginFill(pressed ? 0x5FCBFF : 0x000000, pressed ? 0.55 : baseAlpha);
-		graphics.drawRoundRect(0, 0, buttonWidth, size, size * 0.3, size * 0.3);
+		var color:Int = accent();
+		var round:Bool = buttonWidth <= size * 1.01;
+
+		graphics.lineStyle(3, color, pressed ? 1 : Math.min(1, baseAlpha + 0.45));
+		graphics.beginFill(pressed ? color : 0x000000, pressed ? 0.6 : baseAlpha);
+		if (round)
+			graphics.drawCircle(size / 2, size / 2, size / 2);
+		else
+			graphics.drawRoundRect(0, 0, buttonWidth, size, size * 0.3, size * 0.3);
+		graphics.endFill();
+
+		// a soft inner ring gives the button some depth
+		graphics.lineStyle(1.5, 0xFFFFFF, pressed ? 0.7 : 0.25);
+		graphics.beginFill(0xFFFFFF, pressed ? 0.12 : 0.06);
+		if (round)
+			graphics.drawCircle(size / 2, size / 2, size / 2 - 6);
+		else
+			graphics.drawRoundRect(5, 5, buttonWidth - 10, size - 10, size * 0.22, size * 0.22);
 		graphics.endFill();
 	}
 }
@@ -219,22 +246,23 @@ private class DPad extends Sprite {
 			addChild(layer);
 		}
 
-		// the arrows
-		var marks:Array<String> = ["▲", "▶", "▼", "◀"];
-		var marksX:Array<Float> = [0, 1, 0, -1];
-		var marksY:Array<Float> = [-1, 0, 1, 0];
+		// the arrows: rounded triangles with a light outline
+		var arrows:Sprite = new Sprite();
+		var size:Float = radius * 0.2;
 		for (i in 0...4) {
-			var text:TextField = new TextField();
-			text.selectable = false;
-			text.mouseEnabled = false;
-			text.defaultTextFormat = new TextFormat("_sans", Std.int(radius * 0.4), 0xFFFFFF, true, null, null, null, null, TextFormatAlign.CENTER);
-			text.text = marks[i];
-			text.width = radius * 0.7;
-			text.height = radius * 0.7;
-			text.x = marksX[i] * radius * 0.58 - text.width / 2;
-			text.y = marksY[i] * radius * 0.58 - text.height * 0.5 + 2;
-			addChild(text);
+			var angle:Float = (i * 90 - 90) * Math.PI / 180;
+			var cx:Float = Math.cos(angle) * radius * 0.6;
+			var cy:Float = Math.sin(angle) * radius * 0.6;
+			var tip:Float = angle;
+			arrows.graphics.lineStyle(3, 0xFFFFFF, 0.95, false, openfl.display.LineScaleMode.NORMAL, openfl.display.CapsStyle.ROUND, openfl.display.JointStyle.ROUND);
+			arrows.graphics.beginFill(0xFFFFFF, 0.85);
+			arrows.graphics.moveTo(cx + Math.cos(tip) * size, cy + Math.sin(tip) * size);
+			arrows.graphics.lineTo(cx + Math.cos(tip + 2.4) * size, cy + Math.sin(tip + 2.4) * size);
+			arrows.graphics.lineTo(cx + Math.cos(tip - 2.4) * size, cy + Math.sin(tip - 2.4) * size);
+			arrows.graphics.lineTo(cx + Math.cos(tip) * size, cy + Math.sin(tip) * size);
+			arrows.graphics.endFill();
 		}
+		addChild(arrows);
 	}
 
 	/**
@@ -965,14 +993,6 @@ class MobileInput extends Sprite {
 					var size:Float = Math.min(stageWidth, stageHeight) * 0.14;
 					var margin:Float = size * 0.35;
 
-					// the main menu is moved by touch, the only button there is MODS
-					if (FlxG.state is MainMenuState && FlxG.state.subState == null) {
-						#if MODDING_ALLOWED
-						addButton(Keyboard.TAB, "MODS", stageWidth - size * 1.4, size * 0.4, size);
-						#end
-						return;
-					}
-
 					// D-pad (bottom left): a single round pad
 					var padRadius:Float = size * 1.5;
 					dpad = new DPad(margin + padRadius, stageHeight - margin - padRadius, padRadius, buttonAlpha);
@@ -981,8 +1001,8 @@ class MobileInput extends Sprite {
 
 					// accept / back (bottom right)
 					var bigSize:Float = size * 1.15;
-					addButton(Keyboard.ENTER, "A", stageWidth - margin - bigSize, stageHeight - margin - bigSize * 1.9, bigSize);
-					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - bigSize * 2.2, stageHeight - margin - bigSize, bigSize);
+					addButton(Keyboard.ENTER, "A", stageWidth - margin - bigSize, stageHeight - margin - bigSize * 1.7, bigSize);
+					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - bigSize * 2.15, stageHeight - margin - bigSize * 1.05, bigSize);
 
 					#if MODDING_ALLOWED
 					// the mod switcher lives on TAB

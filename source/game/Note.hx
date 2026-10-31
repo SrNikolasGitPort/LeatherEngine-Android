@@ -267,7 +267,7 @@ class Note extends #if MODCHARTING_TOOLS modcharting.FlxSprite3D #else flixel.ad
 			// has to be lifted by half of the extra height (the original offset lifted it too much, so it came early) - the same for upscroll and downscroll.
 			updateHitbox();
 			var artCenter:Float = frame != null ? (frame.offset.y + frame.sourceSize.y) / 2 : 119;
-			noteYOffset = (artCenter - 154 / 2) * lmaoStuff;
+			noteYOffset = (artCenter - 154 / 2 + 8) * lmaoStuff; // +8: a little higher, as asked
 			downSign = 1;
 		}
 		#end
