@@ -176,6 +176,11 @@ class Main extends Sprite {
 		display.defaultTextFormat = new TextFormat(font, (font == "_sans" ? 12 : 14), display.textColor);
 	}
 
+	#if mobile
+	static var handledErrors:Map<String, Bool> = new Map();
+	static var handledErrorCount:Int = 0;
+	#end
+
 	#if sys
 	/**
 	 * Shoutout to @gedehari for making the crash logging code
@@ -220,6 +225,18 @@ class Main extends Sprite {
 
 		error += "\nUncaught Error: " + errorData;
 
+		#if mobile
+		// an error that happens every frame would write a new log (and open a new crash screen) every frame,
+		// so each different error is only handled once and the number of logs per session is limited
+		var errorId:String = errorData + (callStack.length > 0 ? Std.string(callStack[0]) : "");
+		if (handledErrors.exists(errorId) || handledErrorCount >= 5) {
+			e.preventDefault();
+			return;
+		}
+		handledErrors.set(errorId, true);
+		handledErrorCount++;
+		#end
+
 		// the error text can contain characters that can't be in a file name
 		var safeName:String = ~/[^A-Za-z0-9_.-]+/g.replace(errorData, "_");
 		if (safeName.length > 40)
@@ -233,6 +250,14 @@ class Main extends Sprite {
 		File.saveContent(path, error + "\n");
 
 		#if mobile
+		// only the 20 newest logs are kept
+		try {
+			var logs:Array<String> = FileSystem.readDirectory("./crash/").filter(f -> f.startsWith("crash-"));
+			logs.sort((a, b) -> a < b ? -1 : 1);
+			while (logs.length > 20)
+				FileSystem.deleteFile("./crash/" + logs.shift());
+		} catch (e:Dynamic) {}
+
 		// no dialogs on mobile: the error is shown on the screen with a button that copies the log
 		Sys.println(error);
 		e.preventDefault();
