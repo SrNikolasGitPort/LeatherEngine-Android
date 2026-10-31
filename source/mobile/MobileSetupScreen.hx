@@ -44,7 +44,6 @@ class MobileSetupScreen extends Sprite {
 	var file:TextField;
 	var bar:Sprite;
 	var allowButton:Sprite;
-	var fallbackButton:Sprite;
 
 	var copyFinished:Bool = false;
 	var copySuccess:Bool = false;
@@ -61,20 +60,14 @@ class MobileSetupScreen extends Sprite {
 		file.alpha = 0.6;
 		bar = new Sprite();
 		allowButton = makeButton("Allow access");
-		fallbackButton = makeButton("Use the app folder instead");
 
 		allowButton.addEventListener(MouseEvent.CLICK, (_) -> MobileFiles.requestStorageAccess());
-		fallbackButton.addEventListener(MouseEvent.CLICK, (_) -> {
-			MobileFiles.setStorageMode("DATA");
-			begin();
-		});
 
 		addChild(title);
 		addChild(status);
 		addChild(file);
 		addChild(bar);
 		addChild(allowButton);
-		addChild(fallbackButton);
 	}
 
 	function makeText(size:Int, bold:Bool):TextField {
@@ -181,7 +174,7 @@ class MobileSetupScreen extends Sprite {
 
 		bar.graphics.clear();
 		bar.visible = step == COPYING;
-		allowButton.visible = fallbackButton.visible = step == PERMISSION;
+		allowButton.visible = step == PERMISSION;
 
 		switch (step) {
 			case PERMISSION:
@@ -190,7 +183,6 @@ class MobileSetupScreen extends Sprite {
 				file.y = stageHeight * 0.86;
 
 				layoutButton(allowButton, stageWidth, stageHeight * 0.52);
-				layoutButton(fallbackButton, stageWidth, stageHeight * 0.52 + 80);
 			case COPYING:
 				status.text = "Preparing the game files...\nThis only happens on the first launch.";
 				file.text = MobileFiles.currentFile;

@@ -931,7 +931,7 @@ class MobileInput extends Sprite {
 				{
 					var size:Float = Math.min(stageWidth, stageHeight) * 0.14 * 1.15;
 					var margin:Float = Math.min(stageWidth, stageHeight) * 0.14 * 0.35;
-					addButton(Keyboard.ENTER, "A", stageWidth - margin - size, stageHeight - margin - size * 1.9, size);
+					addButton(Keyboard.ENTER, "A", stageWidth - margin - size, stageHeight - margin - size, size);
 					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - size * 2.2, stageHeight - margin - size, size);
 				}
 			case EDITOR:
@@ -1001,8 +1001,9 @@ class MobileInput extends Sprite {
 
 					// accept / back (bottom right)
 					var bigSize:Float = size * 1.15;
-					addButton(Keyboard.ENTER, "A", stageWidth - margin - bigSize, stageHeight - margin - bigSize * 1.7, bigSize);
-					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - bigSize * 2.15, stageHeight - margin - bigSize * 1.05, bigSize);
+					// A and B side by side on the same line
+					addButton(Keyboard.ENTER, "A", stageWidth - margin - bigSize, stageHeight - margin - bigSize, bigSize);
+					addButton(Keyboard.ESCAPE, "B", stageWidth - margin - bigSize * 2.2, stageHeight - margin - bigSize, bigSize);
 
 					#if MODDING_ALLOWED
 					// the mod switcher lives on TAB

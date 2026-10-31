@@ -47,8 +47,6 @@ class OptionsMenu extends MusicBeatState {
 				"SCREEN: the lanes cover the whole screen.\nGAME: the lanes stay inside the game image, after the black bars."),
 			new BoolOption("Fullscreen", "mobileFullscreen",
 				"On: the game fills the whole screen, without the black bars on the sides.\nOff: normal screen, keeps the original proportions."),
-			new StorageLocationOption("Storage", mobile.MobileFiles.STORAGE_MODES, "storageLocation",
-				"Where the engine folder with the mods is.\nEXTERNAL: .Leather1.1.9 | DATA: Android/data | MEDIA: Android/media | OBB: Android/obb\nRestart the game to apply it.")
 		],
 		#end
 		"Gameplay" => () -> [

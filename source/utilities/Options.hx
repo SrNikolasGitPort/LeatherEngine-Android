@@ -125,6 +125,7 @@ class Options {
 		save.bind(bindNamePrefix + bindNameSuffix, bindPath);
 
 		saves.set(key, save);
+		cache.clear();
 	}
 
 	/**
@@ -134,11 +135,22 @@ class Options {
 	 * @return Dynamic
 	 */
 	public static function getData(dataKey:String, ?saveKey:String = "main"):Dynamic {
-		if (saves.exists(saveKey))
-			return Reflect.getProperty(Reflect.getProperty(saves.get(saveKey), "data"), dataKey);
+		// the options are read many times every frame (every note asks for downscroll, etc.): reading them through reflection each time
+		// is slow, so the values are remembered until one is changed
+		var cacheKey:String = saveKey + "\x01" + dataKey;
+		if (cache.exists(cacheKey))
+			return cache.get(cacheKey);
+
+		if (saves.exists(saveKey)) {
+			var value:Dynamic = Reflect.getProperty(Reflect.getProperty(saves.get(saveKey), "data"), dataKey);
+			cache.set(cacheKey, value);
+			return value;
+		}
 
 		return null;
 	}
+
+	static var cache:Map<String, Dynamic> = new Map();
 
 	/**
 	 * Sets a option.
@@ -149,6 +161,7 @@ class Options {
 	 */
 	public static function setData(value:Dynamic, dataKey:String, ?saveKey:String = "main") {
 		if (saves.exists(saveKey)) {
+			cache.remove(saveKey + "\x01" + dataKey);
 			Reflect.setProperty(Reflect.getProperty(saves.get(saveKey), "data"), dataKey, value);
 
 			saves.get(saveKey).flush();
@@ -159,8 +172,10 @@ class Options {
 	 * Changes an option only in memory (it isn't written to the save by this call).
 	 */
 	public static function setTemporary(value:Dynamic, dataKey:String, ?saveKey:String = "main"):Void {
-		if (saves.exists(saveKey))
+		if (saves.exists(saveKey)) {
+			cache.remove(saveKey + "\x01" + dataKey);
 			Reflect.setProperty(Reflect.getProperty(saves.get(saveKey), "data"), dataKey, value);
+		}
 	}
 
 	public static function fixBinds() {

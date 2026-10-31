@@ -90,6 +90,9 @@ class MobileFiles {
 	 * @return the storage mode picked in the options.
 	 */
 	public static function getStorageMode():String {
+		// the engine folder is always `.Leather1.1.9` in the storage (the other places were removed from the options)
+		if (true)
+			return DEFAULT_MODE;
 		try {
 			var file:String = Path.join([getInternalDirectory(), MODE_FILE]);
 			if (FileSystem.exists(file)) {
